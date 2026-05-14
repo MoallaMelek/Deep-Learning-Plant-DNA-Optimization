@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">Mobile Auth Login Placeholder</title>
+  <desc id="desc">Placeholder for the Arabic mobile login screen.</desc>
+  <rect width="1280" height="760" fill="#0b1220"/>
+  <rect x="72" y="72" width="1136" height="616" rx="28" fill="#111827" stroke="#2dd4bf" stroke-width="3"/>
+  <text x="110" y="170" fill="#e5e7eb" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="700">Mobile Auth Login</text>
+  <text x="110" y="235" fill="#9ca3af" font-family="Segoe UI, Arial, sans-serif" font-size="26">Arabic authentication flow, API-backed session state</text>
+  <rect x="110" y="310" width="430" height="300" rx="24" fill="#0f766e" opacity=".24"/>
+  <text x="610" y="430" fill="#f8fafc" font-family="Segoe UI, Arial, sans-serif" font-size="34">Replace with final screenshot</text>
+</svg>

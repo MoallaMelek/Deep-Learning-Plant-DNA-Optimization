@@ -1,0 +1,2 @@
+"""Plant simulator FastAPI package."""
+

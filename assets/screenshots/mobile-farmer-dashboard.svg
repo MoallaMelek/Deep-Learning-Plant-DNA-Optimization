@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">Mobile Farmer Dashboard Placeholder</title>
+  <desc id="desc">Placeholder for the farmer dashboard module grid.</desc>
+  <rect width="1280" height="760" fill="#08111f"/>
+  <rect x="72" y="72" width="1136" height="616" rx="28" fill="#111827" stroke="#22c55e" stroke-width="3"/>
+  <text x="110" y="170" fill="#e5e7eb" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="700">Mobile Farmer Dashboard</text>
+  <text x="110" y="235" fill="#9ca3af" font-family="Segoe UI, Arial, sans-serif" font-size="26">Module cards for disease, insects, IoT and assistant workflows</text>
+  <g fill="#14532d" opacity=".35"><rect x="110" y="315" width="210" height="150" rx="18"/><rect x="350" y="315" width="210" height="150" rx="18"/><rect x="590" y="315" width="210" height="150" rx="18"/><rect x="830" y="315" width="210" height="150" rx="18"/></g>
+  <text x="110" y="560" fill="#f8fafc" font-family="Segoe UI, Arial, sans-serif" font-size="34">Replace with final screenshot</text>
+</svg>

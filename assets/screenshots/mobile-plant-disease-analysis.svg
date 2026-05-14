@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">Plant Disease Analysis Placeholder</title>
+  <desc id="desc">Placeholder for the mobile plant disease inference result screen.</desc>
+  <rect width="1280" height="760" fill="#0b1220"/><rect x="72" y="72" width="1136" height="616" rx="28" fill="#111827" stroke="#84cc16" stroke-width="3"/>
+  <text x="110" y="170" fill="#e5e7eb" font-family="Segoe UI, Arial, sans-serif" font-size="54" font-weight="700">Plant Disease Analysis</text>
+  <text x="110" y="235" fill="#9ca3af" font-family="Segoe UI, Arial, sans-serif" font-size="26">CNN image classification with confidence-ranked diagnosis</text>
+  <rect x="110" y="310" width="500" height="300" rx="24" fill="#365314" opacity=".38"/><circle cx="360" cy="460" r="86" fill="#84cc16" opacity=".28"/>
+  <text x="665" y="460" fill="#f8fafc" font-family="Segoe UI, Arial, sans-serif" font-size="34">Replace with final screenshot</text>
+</svg>

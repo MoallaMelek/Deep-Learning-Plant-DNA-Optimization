@@ -1,0 +1,61 @@
+name: agri_farmer
+description: Application mobile pour les agriculteurs — AgriCulture Tunisie
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.4.9
+
+  # Navigation
+  go_router: ^13.0.0
+
+  # Network & API
+  http: ^1.1.2
+  dio: ^5.4.0
+
+  # Local Storage
+  shared_preferences: ^2.2.2
+
+  # Image Handling
+  image_picker: ^1.1.2
+
+  # Audio Recording
+  record: ^6.2.0
+  just_audio: ^0.9.46
+
+  # Text-to-Speech
+  flutter_tts: ^4.0.2
+
+  # Charts
+  fl_chart: ^0.66.0
+
+  # UI
+  cupertino_icons: ^1.0.6
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+  shimmer: ^3.0.0
+  lottie: ^3.1.2
+
+  # Utils
+  intl: ^0.20.2
+  path_provider: ^2.1.4
+  permission_handler: ^11.3.0
+  uuid: ^4.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/

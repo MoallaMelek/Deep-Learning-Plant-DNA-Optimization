@@ -1,0 +1,23 @@
+--- CELL 86 ---
+import tensorflow as tf
+import numpy as np
+from PIL import Image
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+import matplotlib.pyplot as plt
+import io
+
+# ── Adapter ce chemin selon votre environnement ──────────────────────
+CNN_MODEL_PATH = "/kaggle/input/datasets/sarahbenattia/1m-apae3qji-tmt5e6cwxw/wheat_classifier.h5"
+# Sur un Jupyter local : CNN_MODEL_PATH = "wheat_classifier.h5"
+# ─────────────────────────────────────────────────────────────────────
+
+CNN_CLASSES = ['disease', 'healthy', 'stress']   # ordre alphabétique Keras
+IMG_SIZE    = (224, 224)
+
+cnn_model = tf.keras.models.load_model(CNN_MODEL_PATH)
+
+print(f"✅ CNN chargé depuis : {CNN_MODEL_PATH}")
+print(f"   Classes détectées : {CNN_CLASSES}")
+print(f"   Taille d'entrée   : {IMG_SIZE}")
+

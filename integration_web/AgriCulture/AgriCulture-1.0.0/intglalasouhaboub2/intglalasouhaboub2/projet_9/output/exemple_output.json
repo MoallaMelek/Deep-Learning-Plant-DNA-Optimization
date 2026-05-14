@@ -1,0 +1,79 @@
+{
+  "status": "SUCCESS",
+  "plant_name": "MAIS",
+  "total_sequences": 57345,
+  "decision_globale": "APPROUVE — Plante conforme aux normes éthiques",
+  "distribution": {
+    "low_risk": 57345,
+    "low_risk_pct": 100.0,
+    "sensitive": 0,
+    "sensitive_pct": 0.0,
+    "high_risk": 0,
+    "high_risk_pct": 0.0
+  },
+  "confiance_moyenne": 94.84,
+  "sequences_incertaines": 0,
+  "sequences_incertaines_pct": 0.0,
+  "lois": {
+    "tunisie": {
+      "low_risk": [
+        "Loi N°58 du 25 juin 2002 : modification OGM conforme",
+        "Loi 99-89 (1999) : semence agricole autorisee",
+        "Décret 94-1745 : Code de protection des végétaux"
+      ],
+      "sensitive": [
+        "Protocole de Carthagène 2002 (Art.15) : évaluation des risques obligatoire",
+        "Loi N°58 du 25 juin 2002 : autorisation requise avant toute utilisation"
+      ],
+      "high_risk": [
+        "Loi N°88-91 (1988) : protection de l'environnement",
+        "Protocole de Carthagène 2002 : principe de précaution - modification interdite"
+      ]
+    },
+    "eu": {
+      "0": "Directive EU 2001/18/CE - conforme",
+      "1": "Règlement (CE) 1829/2003 - autorisation requise",
+      "2": "Directive EU 2001/18/CE Art.4 - interdit"
+    }
+  },
+  "xai_top_sequences": [
+    {
+      "sequence_id": 0,
+      "prediction": 0,
+      "confidence": 94.84,
+      "top_kmers": [
+        {
+          "kmer": "AAAT",
+          "frequency": 0.0052
+        },
+        {
+          "kmer": "AATT",
+          "frequency": 0.0026
+        },
+        {
+          "kmer": "TTAT",
+          "frequency": 0.0035
+        }
+      ]
+    },
+    {
+      "sequence_id": 1,
+      "prediction": 0,
+      "confidence": 94.84,
+      "top_kmers": [
+        {
+          "kmer": "AAAT",
+          "frequency": 0.0051
+        },
+        {
+          "kmer": "GCGC",
+          "frequency": 0.0028
+        },
+        {
+          "kmer": "TTAA",
+          "frequency": 0.0031
+        }
+      ]
+    }
+  ]
+}

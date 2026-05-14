@@ -1,0 +1,128 @@
+{
+  "status": "SUCCESS",
+  "source": "textarea",
+  "plant_name": "Maize ethics sample",
+  "model_status": {
+    "loaded": true,
+    "model_type": "random_forest_calibrated",
+    "message": "Random Forest ethics model loaded with light sequence calibration."
+  },
+  "sequence_length": 160,
+  "total_sequences": 1,
+  "decision_globale": "REVISION HUMAINE — Confiance insuffisante (>20% incertain)",
+  "distribution": {
+    "low_risk": 1,
+    "low_risk_pct": 100.0,
+    "sensitive": 0,
+    "sensitive_pct": 0.0,
+    "high_risk": 0,
+    "high_risk_pct": 0.0
+  },
+  "mean_probabilities": {
+    "low_risk": 57.85,
+    "sensitive": 23.98,
+    "high_risk": 18.17
+  },
+  "confiance_moyenne": 57.85,
+  "sequences_incertaines": 1,
+  "sequences_incertaines_pct": 100.0,
+  "lois": {
+    "tunisie": {
+      "low_risk": [
+        "Loi N°58 du 25 juin 2002 : modification OGM conforme",
+        "Loi 99-89 (1999) : semence agricole autorisee",
+        "Décret 94-1745 : Code de protection des végétaux"
+      ],
+      "sensitive": [
+        "Protocole de Carthagène 2002 (Art.15) : évaluation des risques obligatoire",
+        "Loi N°58 du 25 juin 2002 : autorisation requise avant toute utilisation"
+      ],
+      "high_risk": [
+        "Loi N°88-91 (1988) : protection de l'environnement",
+        "Protocole de Carthagène 2002 : principe de précaution - modification interdite"
+      ]
+    },
+    "eu": {
+      "0": "Directive EU 2001/18/CE - conforme",
+      "1": "Règlement (CE) 1829/2003 - autorisation requise",
+      "2": "Directive EU 2001/18/CE Art.4 - interdit"
+    }
+  },
+  "xai_top_sequences": [
+    {
+      "sequence_id": 0,
+      "prediction": 0,
+      "confidence": 57.85,
+      "top_kmers": [
+        {
+          "kmer": "CCTC",
+          "frequency": 0.0382
+        },
+        {
+          "kmer": "GCCG",
+          "frequency": 0.0255
+        },
+        {
+          "kmer": "CTCC",
+          "frequency": 0.0255
+        },
+        {
+          "kmer": "CCGC",
+          "frequency": 0.0255
+        },
+        {
+          "kmer": "CGCC",
+          "frequency": 0.0255
+        }
+      ]
+    }
+  ],
+  "sequence_results": [
+    {
+      "sequence_id": 0,
+      "length_bp": 160,
+      "label_id": 0,
+      "label": "Low risk",
+      "confidence": 57.85,
+      "probabilities": {
+        "low_risk": 57.85,
+        "sensitive": 23.98,
+        "high_risk": 18.17
+      }
+    }
+  ],
+  "class_labels": {
+    "0": {
+      "key": "low_risk",
+      "label": "Low risk",
+      "tone": "success"
+    },
+    "1": {
+      "key": "sensitive",
+      "label": "Sensitive",
+      "tone": "warning"
+    },
+    "2": {
+      "key": "high_risk",
+      "label": "High risk",
+      "tone": "danger"
+    }
+  },
+  "asset_urls": {},
+  "generated_at": "2026-05-10T18:36:58",
+  "risk_level": "medium",
+  "summary": {
+    "decision": "REVISION HUMAINE — Confiance insuffisante (>20% incertain)",
+    "risk_level": "medium",
+    "confidence": 57.85,
+    "low_risk_pct": 100.0,
+    "sensitive_pct": 0.0,
+    "high_risk_pct": 0.0,
+    "mean_probabilities": {
+      "low_risk": 57.85,
+      "sensitive": 23.98,
+      "high_risk": 18.17
+    },
+    "top_sequence_count": 1
+  }
+}

@@ -1,0 +1,885 @@
+
+--- CELL 4 ---
+
+df = pd.read_csv("/kaggle/input/datasets/sarahbenattia/final223/finalfinal.csv", sep=';')
+df.columns = df.columns.str.strip()
+
+print(f" Dataset chargé : {df.shape[0]} variétés, {df.shape[1]} colonnes")
+
+snp_cols     = [c for c in df.columns if c.startswith('SNP')]
+feature_cols = snp_cols + ['snp_activity']
+target_cols  = ['drought', 'salt', 'yield', 'disease']
+
+X = df[feature_cols].values
+Y = df[target_cols].values
+
+# Split train/test
+X_train, X_test, Y_train, Y_test = train_test_split(
+    X, Y, test_size=0.2, random_state=42
+)
+
+# Normalisation pour MLP et LSTM
+scaler     = StandardScaler()
+X_train_sc = scaler.fit_transform(X_train)
+X_test_sc  = scaler.transform(X_test)
+
+print(f"Train : {X_train.shape} | Test : {X_test.shape}")
+print(f"Targets : {target_cols}")
+print(f"Features totales : {len(feature_cols)} (159 SNPs + snp_activity)")
+print(f"SNP features : {len(snp_cols)} | Total features : {len(feature_cols)}")
+
+--- CELL 5 ---
+
+
+df_raw = pd.read_csv("/kaggle/input/datasets/sarahbenattia/final223/finalfinal.csv", sep=';')
+df_raw.columns = df_raw.columns.str.strip()
+
+snp_cols_all  = [c for c in df_raw.columns if c.startswith('SNP')]
+cnn_cols_all = ['snp_activity']
+trait_cols_all = ['drought','salt','yield','disease']
+
+df_snp    = df_raw.groupby('variety_name')[snp_cols_all].agg(
+                lambda x: x.mode()[0])
+
+# Traits + CNN → moyenne (performance moyenne sur toutes saisons)
+df_traits = df_raw.groupby('variety_name')[trait_cols_all + cnn_cols_all].mean()
+
+df = pd.concat([df_snp, df_traits], axis=1).reset_index()
+df = df[~df['variety_name'].astype(str).str.isdigit()]
+
+
+--- CELL 13 ---
+
+# ── 4.3-B3  CLASSIFIEUR "BON PARENT" — test + accuracy ───────────────
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Vérité terrain : est-ce que la variété a été retenue comme parent ?
+good_parent_names = set(df_parents['variety_name'].unique())
+df['est_bon_parent'] = df['variety_name'].apply(
+    lambda x: 1 if x in good_parent_names else 0
+)
+
+print(f"Labels : {df['est_bon_parent'].value_counts().to_dict()}")
+print(f"  → {df['est_bon_parent'].sum()} bons parents / {len(df)} variétés")
+
+# Features : SNPs + traits phénotypiques + CNN
+features_parent = (snp_cols
+                   + target_cols
+                   + ['snp_activity', 'health_score_cnn',
+                      'leaf_surface_cnn', 'plant_size_cnn'])
+features_parent = [f for f in features_parent if f in df.columns]
+
+X_parent = df[features_parent].fillna(0).values
+y_parent = df['est_bon_parent'].values
+
+# Classifieur
+clf_parent = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=8,
+    class_weight='balanced',
+    random_state=42
+)
+
+# Accuracy 5-fold cross-validation
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+cv_acc  = cross_val_score(clf_parent, X_parent, y_parent, cv=cv, scoring='accuracy')
+cv_f1   = cross_val_score(clf_parent, X_parent, y_parent, cv=cv, scoring='f1')
+cv_prec = cross_val_score(clf_parent, X_parent, y_parent, cv=cv, scoring='precision')
+cv_rec  = cross_val_score(clf_parent, X_parent, y_parent, cv=cv, scoring='recall')
+
+print("\n══════════════════════════════════════════════════════")
+print(" ACCURACY — Classifieur 'Bon Parent' (5-fold CV)")
+print("══════════════════════════════════════════════════════")
+print(f"  Accuracy  : {cv_acc.mean():.4f}  ± {cv_acc.std():.4f}")
+print(f"  F1-score  : {cv_f1.mean():.4f}  ± {cv_f1.std():.4f}")
+print(f"  Precision : {cv_prec.mean():.4f}  ± {cv_prec.std():.4f}")
+print(f"  Recall    : {cv_rec.mean():.4f}  ± {cv_rec.std():.4f}")
+print(f"  Par fold  : {cv_acc.round(3)}")
+
+# Matrice de confusion (train/test split pour visualisation)
+X_tr, X_te, y_tr, y_te = train_test_split(
+    X_parent, y_parent, test_size=0.2, stratify=y_parent, random_state=42
+)
+clf_parent.fit(X_tr, y_tr)
+y_pred_te = clf_parent.predict(X_te)
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+sns.heatmap(confusion_matrix(y_te, y_pred_te),
+            annot=True, fmt='d', cmap='Blues',
+            xticklabels=['Prédit ✗', 'Prédit ✓'],
+            yticklabels=['Réel ✗', 'Réel ✓'], ax=axes[0])
+axes[0].set_title('Matrice de confusion — Bon Parent', fontweight='bold')
+
+importances = clf_parent.feature_importances_
+top_idx     = np.argsort(importances)[::-1][:15]
+top_names   = [features_parent[i] for i in top_idx]
+top_vals    = importances[top_idx]
+colors_fi   = ['#4e79a7' if n.startswith('SNP') else
+               '#f28e2b' if 'cnn' in n else '#59a14f'
+               for n in top_names]
+
+axes[1].barh(top_names[::-1], top_vals[::-1],
+             color=colors_fi[::-1], edgecolor='white')
+axes[1].set_xlabel('Importance')
+axes[1].set_title('Top 15 features — décision "Bon Parent"', fontweight='bold')
+axes[1].grid(axis='x', alpha=0.3)
+
+plt.suptitle('Étape 4 — Classifieur "Bon Parent"',
+             fontsize=13, fontweight='bold', y=1.02)
+plt.tight_layout()
+plt.savefig('bon_parent_accuracy.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+# Entraînement final sur tout le dataset
+clf_parent.fit(X_parent, y_parent)
+
+# ── Fonction de test ──────────────────────────────────────────────────
+def tester_bon_parent(nom_variete):
+    match = df[df['variety_name'].str.contains(
+        nom_variete, case=False, na=False)]
+
+    if match.empty:
+        print(f"❌ '{nom_variete}' introuvable.")
+        print(f"   Exemples : {df['variety_name'].dropna().sample(5).tolist()}")
+        return
+
+    variete   = match.iloc[0]
+    x_input   = variete[features_parent].fillna(0).values.reshape(1, -1)
+    pred      = clf_parent.predict(x_input)[0]
+    confiance = clf_parent.predict_proba(x_input)[0][1] * 100
+
+    print(f"\n{'═'*50}")
+    print(f" Variété : {variete['variety_name']}")
+    print(f"{'═'*50}")
+    print(f"  drought={variete['drought']:.3f} | salt={variete['salt']:.3f}"
+          f" | yield={variete['yield']:.3f} | disease={variete['disease']:.3f}")
+    print(f"\n  ► {'✅ BON PARENT' if pred == 1 else '❌ PAS recommandé'}")
+    print(f"  ► Confiance : {confiance:.1f}%")
+    print(f"  ► Déjà dans df_parents : {'OUI' if variete['variety_name'] in good_parent_names else 'NON'}")
+
+    if pred == 0:
+        pf = min(['drought','salt','yield','disease'], key=lambda t: variete[t])
+        print(f"  ► Point faible : {pf} ({variete[pf]:.3f})")
+
+# ── Tests ─────────────────────────────────────────────────────────────
+tester_bon_parent("CIRNO C 2008")
+tester_bon_parent("Khiar")
+
+--- CELL 38 ---
+
+if best_model_name in ['MLP (3 couches)']:
+    pair_features_sc = scaler.transform(pair_features)
+    if best_model_name == 'MLP (3 couches)':
+        best_model_obj.eval()
+        with torch.no_grad():
+            pred_pairs = best_model_obj(torch.FloatTensor(pair_features_sc)).numpy()
+    else:
+        best_model_obj.eval()
+        with torch.no_grad():
+            pred_pairs = best_model_obj(torch.FloatTensor(pair_features_sc).unsqueeze(-1)).numpy()
+else:
+    pred_pairs = best_model_obj.predict(pair_features)
+
+# ── Extraire les colonnes SNP depuis pair_features ──────────────────
+# pair_features contient : 159 SNPs + snp_activity → on garde les SNPs uniquement
+n_snp = len(snp_cols)  # 159
+
+# Construire le DataFrame SNPs des croisements
+snp_pairs_df = pd.DataFrame(
+    pair_features[:, :n_snp],
+    columns=snp_cols
+)
+
+# ── Construire crossings_df avec traits prédits + SNPs ──────────────
+crossings_df = pd.DataFrame({
+    'Croisement'   : pair_names,
+    'pred_drought' : pred_pairs[:, 0],
+    'pred_salt'    : pred_pairs[:, 1],
+    'pred_yield'   : pred_pairs[:, 2],
+    'pred_disease' : pred_pairs[:, 3],
+})
+
+# Ajouter les colonnes SNP à crossings_df
+crossings_df = pd.concat([crossings_df, snp_pairs_df], axis=1)
+
+print(f"Predictions faites avec : {best_model_name}")
+print(f"Nombre de descendants virtuels : {len(crossings_df)}")
+print(f"Colonnes total : {len(crossings_df.columns)} (5 infos + {n_snp} SNPs)")
+print(f"  Exemple : {crossings_df.iloc[0]['Croisement']}")
+print(f"    drought={crossings_df.iloc[0]['pred_drought']:.4f} | salt={crossings_df.iloc[0]['pred_salt']:.4f} | yield={crossings_df.iloc[0]['pred_yield']:.4f} | disease={crossings_df.iloc[0]['pred_disease']:.4f}")
+print(f"    SNP_1={crossings_df.iloc[0]['SNP_1']} | SNP_2={crossings_df.iloc[0]['SNP_2']} | ... | SNP_{n_snp}={crossings_df.iloc[0][snp_cols[-1]]}")
+
+# ✅ EXPORT EXCEL
+nom_fichier_excel = "predictions_croisements.xlsx"
+crossings_df.to_excel(nom_fichier_excel, index=False)
+print(f"\n📄 Fichier Excel généré : {nom_fichier_excel}")
+print(f"   Structure : Croisement | pred_drought | pred_salt | pred_yield | pred_disease | SNP_1 ... SNP_{n_snp}")
+
+--- CELL 61 ---
+
+import pandas as pd
+
+# ── SNP originaux (non encodés) ──────────────────────────────
+df_snp_raw = pd.read_excel(
+    '/kaggle/input/datasets/sarahbenattia/data-oriiginal/original_genotype_data.xlsx'
+).reset_index(drop=True)
+
+# ── Dataset encodé (ML) ──────────────────────────────────────
+df = pd.read_csv(
+    "/kaggle/input/datasets/sarahbenattia/final223/finalfinal.csv",
+    sep=None, engine="python"  # ← détecte automatiquement ; ou ,
+).reset_index(drop=True)
+
+# ── colonnes métadonnées SNP raw ─────────────────────────────
+_META_COLS = ['probeset_id', 'Chromosome', 'position', 'Allele_A', 'Allel_B']
+
+# ── SNP raw (biologique) ─────────────────────────────────────
+_GENO_COLS = [c for c in df_snp_raw.columns if c not in _META_COLS]
+
+# ── SNP encodés (ML dataset) ─────────────────────────────────
+snp_cols = [c for c in df.columns if "SNP" in c]
+
+# ── CHECK IMPORTANT (alignement) ─────────────────────────────
+print("SNP raw :", len(_GENO_COLS))
+print("SNP ML  :", len(snp_cols))
+
+print(f"✅ df_snp_raw : {df_snp_raw.shape}")
+print(f"✅ df (ML)    : {df.shape}")
+
+print("🔎 preview raw SNP :", _GENO_COLS[:5])
+print("🔎 preview ML SNP  :", snp_cols[:5])
+# ── feature_cols : SNPs + snp_activity (utilisé par scorer) ─────────────────
+feature_cols = snp_cols + ['snp_activity'] if 'snp_activity' in df.columns else snp_cols
+
+# ── df_parents : variétés éligibles comme parents ──────────────────────────
+# Logique KMeans+Pareto → ici on prend toutes les variétés (filtre désactivé)
+# Adaptez si vous avez un fichier de parents pré-filtrés
+df_parents = df.copy()
+
+print(f"✅ feature_cols : {len(feature_cols)} features")
+print(f"✅ df_parents   : {len(df_parents)} variétés disponibles comme parents")
+print(f"✅ Colonnes df  : {list(df.columns[:8])}...")
+
+
+--- CELL 77 ---
+
+def _resoudre_variete_source(nom_variete=None, drought=None, salt=None,
+                              yield_val=None, disease=None):
+    """
+    Résout la variété source et retourne un dict complet.
+    Retourne None si la variété ne peut pas servir de parent (avec message).
+    """
+    # ── Cas 1 : recherche par nom ──────────────────────────────────────────────
+    if nom_variete is not None:
+        if 'variety_name' not in df.columns:
+            print("❌ Colonne 'variety_name' absente du DataFrame df.")
+            print(f"   Colonnes disponibles : {list(df.columns[:10])}")
+            print("   → Vérifiez le séparateur du CSV (sep=';' ou sep=',')")
+            return None
+        match = df[df['variety_name'].str.contains(nom_variete, case=False, na=False)]
+
+        if match.empty:
+            print(f"❌ Variété '{nom_variete}' introuvable dans le dataset.")
+            print(f"   Exemples disponibles : {df['variety_name'].dropna().tolist()[:8]}")
+            return None
+
+        variete_A = match.iloc[0]
+        idx_A     = match.index[0]
+        label_A   = variete_A['variety_name']
+        traits_A  = {k: variete_A[k] for k in ['drought', 'salt', 'yield', 'disease']}
+        featA     = variete_A[feature_cols].values.astype(float)
+        snp_raw_A = df_snp_raw.iloc[idx_A] if idx_A < len(df_snp_raw) else None
+        snpA_enc  = variete_A[snp_cols].values.astype(float)
+
+        # ── VÉRIFICATION : la variété peut-elle être parent ? ─────────────────
+        if label_A not in df_parents['variety_name'].unique():
+            print("━" * 65)
+            print(f"🚫  '{label_A}' NE PEUT PAS ÊTRE UTILISÉE COMME PARENT.")
+            print("    Elle n'a pas été retenue par le filtre KMeans + Pareto.")
+            print("━" * 65)
+            print()
+            print("💡 Alternatives — parents valides disponibles :\n")
+
+            print("   ▶ OPTION A : Parents génétiquement proches (similarité cosinus SNP)")
+            sim_df = _trouver_parents_similaires_snp(variete_A, df, df_parents, snp_cols)
+            for r, (_, row) in enumerate(sim_df.iterrows(), 1):
+                print(f"     #{r} {str(row['variety_name']):<45} sim={row['_sim']:.4f}")
+            print()
+
+            print("   ▶ OPTION B : Parents phénotypiquement proches (traits agronomiques)")
+            prox_df = _trouver_parents_similaires_traits(traits_A, df_parents)
+            for r, (_, row) in enumerate(prox_df.iterrows(), 1):
+                print(f"     #{r} {str(row['variety_name']):<40} "
+                      f"drought={row['drought']:.3f} salt={row['salt']:.3f} "
+                      f"yield={row['yield']:.3f} disease={row['disease']:.3f}")
+            print()
+            print("   → Relancez avec un nom ci-dessus, ou utilisez les traits directs :")
+            print(f"     recommander_pour_variete("
+                  f"drought={traits_A['drought']:.2f}, salt={traits_A['salt']:.2f}, "
+                  f"yield_val={traits_A['yield']:.2f}, disease={traits_A['disease']:.2f})")
+            return None   # ← ARRÊT : pas de parent valide
+
+        return dict(label_A=label_A, traits_A=traits_A, featA=featA,
+                    snp_raw_A=snp_raw_A, snpA_enc=snpA_enc,
+                    idx_A=idx_A, variete_A=variete_A)
+
+    # ── Cas 2 : traits directs ─────────────────────────────────────────────────
+    elif all(v is not None for v in [drought, salt, yield_val, disease]):
+        label_A  = f"Custom_d{drought}_s{salt}_y{yield_val}_dis{disease}"
+        traits_A = {'drought': drought, 'salt': salt, 'yield': yield_val, 'disease': disease}
+        snp_means = df[snp_cols].mean().values
+        snp_act   = df['snp_activity'].mean()
+        featA     = np.concatenate([snp_means, [snp_act]])
+        return dict(label_A=label_A, traits_A=traits_A, featA=featA,
+                    snp_raw_A=None, snpA_enc=snp_means.astype(float),
+                    idx_A=None, variete_A=None)
+
+    else:
+        print("❌ Fournir 'nom_variete' OU les 4 traits (drought, salt, yield_val, disease).")
+        return None
+
+print("✅ Fonction de résolution de variété définie.")
+
+--- CELL 86 ---
+
+import tensorflow as tf
+import numpy as np
+from PIL import Image
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+import matplotlib.pyplot as plt
+import io
+
+# ── Adapter ce chemin selon votre environnement ──────────────────────
+CNN_MODEL_PATH = "/kaggle/input/datasets/sarahbenattia/1m-apae3qji-tmt5e6cwxw/wheat_classifier.h5"
+# Sur un Jupyter local : CNN_MODEL_PATH = "wheat_classifier.h5"
+# ─────────────────────────────────────────────────────────────────────
+
+CNN_CLASSES = ['disease', 'healthy', 'stress']   # ordre alphabétique Keras
+IMG_SIZE    = (224, 224)
+
+cnn_model = tf.keras.models.load_model(CNN_MODEL_PATH)
+
+print(f"✅ CNN chargé depuis : {CNN_MODEL_PATH}")
+print(f"   Classes détectées : {CNN_CLASSES}")
+print(f"   Taille d'entrée   : {IMG_SIZE}")
+
+
+--- CELL 88 ---
+
+def _pretraiter_image(img_bytes):
+    """Redimensionne et normalise une image depuis des bytes bruts → tensor (1,224,224,3)."""
+    img = Image.open(io.BytesIO(img_bytes)).convert("RGB").resize(IMG_SIZE)
+    arr = np.array(img, dtype=np.float32) / 255.0
+    return np.expand_dims(arr, axis=0)
+
+def _predire_classe(img_bytes):
+    """
+    Retourne (classe_predite: str, confiance: float, probs: dict).
+    La classe est l'une de : 'healthy', 'stress', 'disease'.
+    """
+    tensor = _pretraiter_image(img_bytes)
+    probs  = cnn_model.predict(tensor, verbose=0)[0]
+    idx    = int(np.argmax(probs))
+    return CNN_CLASSES[idx], float(probs[idx]), dict(zip(CNN_CLASSES, probs.tolist()))
+
+print("✅ Fonctions de prédiction CNN définies.")
+
+
+--- CELL 90 ---
+
+# Profils de traits cibles selon le diagnostic CNN
+CNN_TO_TRAITS = {
+    'healthy': dict(drought=0.50, salt=0.50, yield_val=0.75, disease=0.50),
+    'stress' : dict(drought=0.85, salt=0.70, yield_val=0.50, disease=0.40),
+    'disease': dict(drought=0.40, salt=0.40, yield_val=0.45, disease=0.90),
+}
+
+LABEL_FR = {
+    'healthy': 'Saine 🌾',
+    'stress' : 'Stress hydrique / salin 🌵',
+    'disease': 'Maladie 🦠',
+}
+
+LABEL_COLOR = {
+    'healthy': '#27ae60',
+    'stress' : '#e67e22',
+    'disease': '#c0392b',
+}
+
+print("✅ Mapping CNN → traits défini :")
+for cls, t in CNN_TO_TRAITS.items():
+    print(f"   {LABEL_FR[cls]:30s} → drought={t['drought']} | salt={t['salt']} | "
+          f"yield={t['yield_val']} | disease={t['disease']}")
+
+
+--- CELL 92 ---
+
+import io
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from IPython.display import display, clear_output
+import ipywidgets as widgets
+
+
+def lancer_interface_cnn():
+    """
+    Interface ipywidgets complète :
+    upload photo → affichage image → CNN → mapping → recommandation de croisement.
+    """
+
+    # ── Widgets ───────────────────────────────────────────────────────
+    upload_btn = widgets.FileUpload(
+        accept='.jpg,.jpeg,.png',
+        multiple=False,
+        description='📷 Photo de blé',
+        layout=widgets.Layout(width='300px')
+    )
+
+    top_n_slider = widgets.IntSlider(
+        value=5, min=1, max=10, step=1,
+        description='Top-N :',
+        style={'description_width': '60px'},
+        layout=widgets.Layout(width='320px')
+    )
+
+    run_btn = widgets.Button(
+        description='🔍 Analyser & Recommander',
+        button_style='success',
+        layout=widgets.Layout(width='300px', height='40px')
+    )
+
+    out = widgets.Output()
+
+    # ── Callback principal ────────────────────────────────────────────
+    def _on_click(_):
+        with out:
+            clear_output(wait=True)
+
+            # ── Vérification upload ───────────────────────────────────
+            if not upload_btn.value:
+                print("⚠️  Veuillez d'abord charger une image.")
+                return
+
+            # ── Gestion compatibilité upload ──────────────────────────
+            upload_value = upload_btn.value
+
+            if isinstance(upload_value, dict):
+                img_bytes = list(upload_value.values())[0]['content']
+            else:
+                img_bytes = upload_value[0]['content']
+
+            # ── Image ──────────────────────────────────────────────────
+            pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+            # ── CNN prediction ────────────────────────────────────────
+            classe, confiance, probs = _predire_classe(img_bytes)
+            color = LABEL_COLOR.get(classe, '#2c3e50')
+
+            # ── Visualisation ─────────────────────────────────────────
+            fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+            axes[0].imshow(pil_img)
+            axes[0].axis('off')
+            axes[0].set_title(
+                f"Diagnostic CNN : {LABEL_FR[classe]}\nConfiance : {confiance*100:.1f}%",
+                fontsize=12,
+                fontweight='bold',
+                color=color
+            )
+
+            cls_sorted = sorted(probs.items(), key=lambda x: -x[1])
+            bar_labels = [LABEL_FR[c] for c, _ in cls_sorted]
+            bar_vals   = [p * 100 for _, p in cls_sorted]
+            bar_colors = [LABEL_COLOR.get(c, '#7f8c8d') for c, _ in cls_sorted]
+
+            bars = axes[1].bar(
+                bar_labels,
+                bar_vals,
+                color=bar_colors,
+                edgecolor='white',
+                linewidth=1.5
+            )
+
+            for bar, val in zip(bars, bar_vals):
+                axes[1].text(
+                    bar.get_x() + bar.get_width()/2,
+                    bar.get_height() + 0.8,
+                    f'{val:.1f}%',
+                    ha='center',
+                    fontweight='bold',
+                    fontsize=11
+                )
+
+            axes[1].set_ylim(0, 115)
+            axes[1].set_ylabel('Confiance (%)')
+            axes[1].set_title('Scores CNN par classe', fontweight='bold')
+            axes[1].grid(axis='y', alpha=0.3)
+
+            plt.tight_layout()
+            plt.savefig('cnn_diagnostic.png', dpi=130, bbox_inches='tight')
+            plt.show()
+
+            # ── Résumé ────────────────────────────────────────────────
+            print("━" * 60)
+            print("🌾 DIAGNOSTIC CNN")
+            print(f"   Classe détectée : {LABEL_FR[classe]}")
+            print(f"   Confiance       : {confiance*100:.1f}%")
+            print()
+
+            print("   Distribution des probabilités :")
+            for c, p in cls_sorted:
+                bar_txt = '█' * int(p * 30)
+                print(f"     {LABEL_FR[c]:32s}  {bar_txt}  {p*100:.1f}%")
+
+            print("━" * 60)
+
+            # ── Mapping traits ───────────────────────────────────────
+            traits = CNN_TO_TRAITS[classe]
+
+            print("\n📐 Profil de traits ciblé :")
+
+            labels_k = {
+                'drought'  : 'Tolérance sécheresse',
+                'salt'     : 'Tolérance sel',
+                'yield_val': 'Rendement',
+                'disease'  : 'Résistance maladie'
+            }
+
+            for k, v in traits.items():
+                print(f"   {labels_k.get(k,k):<28} : {v}")
+
+            print()
+
+            # ── Recommandation ───────────────────────────────────────
+            print("🔬 Recherche des meilleurs croisements...\n")
+
+            recommander_pour_variete(
+                drought      = traits['drought'],
+                salt         = traits['salt'],
+                yield_val    = traits['yield_val'],
+                disease      = traits['disease'],
+                top_n        = top_n_slider.value,
+                ensembl_cache= ensembl_cache  # séquences réelles
+            )
+
+    run_btn.on_click(_on_click)
+
+    # ── UI ───────────────────────────────────────────────────────────
+    display(widgets.VBox([
+        widgets.HTML(
+            "<h3>🌾 Diagnostic CNN + Recommandation de croisement</h3>"
+            "<p>Chargez une image → analyse CNN → sélection génétique.</p>"
+        ),
+        widgets.HBox([upload_btn, top_n_slider]),
+        run_btn,
+        out
+    ]))
+
+
+# ── Lancement ─────────────────────────────────────────────────────────
+lancer_interface_cnn()
+
+--- CELL 94 ---
+
+# ── Exemple 1 : variété disponible comme parent ──────────────────────────────
+res_nom = recommander_pour_variete(
+    nom_variete="CIRNO C 2008", top_n=5,
+    ensembl_cache=ensembl_cache  # ← séquences réelles depuis le cache
+)
+
+# ── Exemple 2 : par traits directs (équivalent d'un diagnostic CNN stress) ────
+res_stress = recommander_pour_variete(
+    drought=0.85, salt=0.70, yield_val=0.50, disease=0.40, top_n=5,
+    ensembl_cache=ensembl_cache
+)
+
+# ── Exemple 3 : par traits directs (équivalent d'un diagnostic CNN disease) ───
+# res_disease = recommander_pour_variete(
+#     drought=0.40, salt=0.40, yield_val=0.45, disease=0.90, top_n=5,
+#     ensembl_cache=ensembl_cache
+# )
+
+
+--- CELL 102 ---
+
+# ── SHAP GLOBAL — Top 10 features par trait (4 sous-graphiques) ────
+import matplotlib.pyplot as plt
+
+trait_names = ['drought', 'salt', 'yield', 'disease']
+fig, axes   = plt.subplots(2, 2, figsize=(16, 12))
+
+for ax, trait_idx, trait_name in zip(axes.flatten(), range(4), trait_names):
+
+    explainer_t  = shap.TreeExplainer(xgb_model.estimators_[trait_idx])
+    shap_vals_t  = explainer_t.shap_values(X_sample)
+
+    importance_t = np.abs(shap_vals_t).mean(axis=0)
+    sorted_t     = np.argsort(importance_t)[::-1][:10]
+
+    top_feat_t = [feature_names[i] for i in sorted_t]
+    top_val_t  = importance_t[sorted_t]
+
+    colors_t = ['#4e79a7' if f.startswith('SNP') else
+                '#f28e2b' if 'cnn' in f else '#59a14f'
+                for f in top_feat_t]
+
+    ax.barh(top_feat_t[::-1], top_val_t[::-1],
+            color=colors_t[::-1], edgecolor='white', linewidth=1.2)
+
+    ax.set_title(f'SHAP — Variables influençant {trait_name.upper()}',
+                 fontweight='bold', fontsize=12)
+    ax.set_xlabel('Importance moyenne (SHAP)')
+    ax.grid(axis='x', alpha=0.3)
+
+plt.suptitle('Explainable AI — Analyse SHAP globale par trait',
+             fontsize=14, fontweight='bold', y=1.02)
+plt.tight_layout()
+plt.savefig('shap_all_traits.png', dpi=150, bbox_inches='tight')
+plt.show()
+print("✅ Analyse SHAP multi-traits terminée")
+
+
+--- CELL 105 ---
+
+# ─────────────────────────────────────────────────────────────────────
+# 8.1 FEATURE IMPORTANCE — RF et XGBoost sur les SNPs
+# ─────────────────────────────────────────────────────────────────────
+print('8.1 Feature Importance RF + XGBoost sur SNPs')
+print('='*60)
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# ── Noms des features (SNPs + CNN)
+feature_names_8 = feature_cols  # ← correction ici
+snp_only_idx    = [i for i, f in enumerate(feature_names_8) if f.startswith('SNP')]
+
+# ── Feature importance Random Forest (moyenne sur les 4 traits)
+rf_importances = rf.feature_importances_
+
+# ── Feature importance XGBoost (moyenne sur les 4 estimateurs)
+xgb_importances = np.mean(
+    [est.feature_importances_ for est in xgb_model.estimators_], axis=0
+)
+
+# ── Garder uniquement les SNPs
+rf_snp_imp  = rf_importances[snp_only_idx]
+xgb_snp_imp = xgb_importances[snp_only_idx]
+snp_names   = [feature_names_8[i] for i in snp_only_idx]
+
+# ── Top 20 SNPs par XGBoost
+top20_idx   = np.argsort(xgb_snp_imp)[::-1][:20]
+top20_names = [snp_names[i] for i in top20_idx]
+top20_rf    = rf_snp_imp[top20_idx]
+top20_xgb   = xgb_snp_imp[top20_idx]
+
+print(f'\nTop 10 SNPs les plus importants (XGBoost) :')
+for i, (name, imp) in enumerate(zip(top20_names[:10], top20_xgb[:10])):
+    print(f'  {i+1:2d}. {name:<12} importance = {imp:.4f}')
+
+# ── Visualisation comparaison RF vs XGBoost
+fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+y_pos = np.arange(20)
+
+# RF
+colors_rf = ['#1D9E75' if v > np.median(top20_rf) else '#9FE1CB' for v in top20_rf]
+axes[0].barh(y_pos, top20_rf[::-1], color=colors_rf[::-1], edgecolor='white', linewidth=0.8)
+axes[0].set_yticks(y_pos)
+axes[0].set_yticklabels(top20_names[::-1], fontsize=9)
+axes[0].set_xlabel('Importance (Random Forest)')
+axes[0].set_title('Top 20 SNPs — Random Forest', fontweight='bold')
+axes[0].grid(axis='x', alpha=0.3)
+
+# XGBoost
+colors_xgb = ['#378ADD' if v > np.median(top20_xgb) else '#B5D4F4' for v in top20_xgb]
+axes[1].barh(y_pos, top20_xgb[::-1], color=colors_xgb[::-1], edgecolor='white', linewidth=0.8)
+axes[1].set_yticks(y_pos)
+axes[1].set_yticklabels(top20_names[::-1], fontsize=9)
+axes[1].set_xlabel('Importance (XGBoost)')
+axes[1].set_title('Top 20 SNPs — XGBoost', fontweight='bold')
+axes[1].grid(axis='x', alpha=0.3)
+
+plt.suptitle('Étape 8 — Feature Importance des marqueurs SNP', fontsize=13, fontweight='bold')
+plt.tight_layout()
+plt.savefig('etape8_feature_importance_snp.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+# Sauvegarder les top SNPs pour la validation QTL
+top20_shap_snps = top20_names
+print('\nFeature Importance SNPs sauvegardée.')
+
+--- CELL 106 ---
+
+# ─────────────────────────────────────────────────────────────────────
+# 8.2 SHAP SUR LES SNPs — Beeswarm + Waterfall
+# ─────────────────────────────────────────────────────────────────────
+print('8.2 Analyse SHAP sur les colonnes SNP')
+print('='*60)
+print('Objectif : identifier quels SNPs expliquent chaque trait')
+print('Différence avec étape 5.4 : ici on analyse les SNPs ADN,')
+print('pas les traits phénotypiques des parents.')
+print()
+
+import shap
+import warnings
+warnings.filterwarnings('ignore')
+
+# Échantillon de test (200 observations)
+np.random.seed(42)
+sample_idx_8 = np.random.choice(len(X_test), size=min(200, len(X_test)), replace=False)
+X_sample_8   = X_test[sample_idx_8]
+
+TRAIT_COLORS = {'drought': '#1D9E75', 'salt': '#378ADD',
+                'yield':   '#EF9F27', 'disease': '#D85A30'}
+
+# ── SHAP par trait sur XGBoost ──
+shap_per_trait = {}
+for trait_idx, trait_name in enumerate(['drought', 'salt', 'yield', 'disease']):
+    explainer_t     = shap.TreeExplainer(xgb_model.estimators_[trait_idx])
+    shap_vals_t     = explainer_t.shap_values(X_sample_8)
+    shap_per_trait[trait_name] = shap_vals_t
+
+print('SHAP calculé pour les 4 traits.')
+
+# ── GRAPHIQUE 1 : Beeswarm pour drought (le plus important pour Médenine)
+print('\nGraphique 1 : Beeswarm SHAP — Tolérance sécheresse')
+explainer_drought8 = shap.TreeExplainer(xgb_model.estimators_[0])
+shap_explanation   = shap.Explanation(
+    values        = shap_per_trait['drought'],
+    base_values   = explainer_drought8.expected_value,
+    data          = X_sample_8,
+    feature_names = feature_names_8
+)
+plt.figure(figsize=(10, 8))
+shap.plots.beeswarm(shap_explanation, max_display=20, show=False)
+plt.title('SHAP Beeswarm — Tolérance sécheresse (drought)\n'
+          'Chaque point = une variété | Rouge = SNP favorise drought | Bleu = défavorise',
+          fontsize=11, fontweight='bold')
+plt.tight_layout()
+plt.savefig('etape8_shap_beeswarm_drought.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+# ── GRAPHIQUE 2 : SHAP top 10 par trait (4 sous-graphiques)
+print('\nGraphique 2 : Top 10 SNPs par trait')
+fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+
+for ax, trait_name in zip(axes.flatten(), ['drought', 'salt', 'yield', 'disease']):
+    shap_vals_t  = shap_per_trait[trait_name]
+    importance_t = np.abs(shap_vals_t).mean(axis=0)
+    top10_idx_t  = np.argsort(importance_t)[::-1][:10]
+    top10_feat   = [feature_names_8[i] for i in top10_idx_t]
+    top10_vals   = importance_t[top10_idx_t]
+
+    colors_t = ['#4e79a7' if f.startswith('SNP') else
+                '#f28e2b' if 'cnn' in f else '#59a14f'
+                for f in top10_feat]
+
+    ax.barh(top10_feat[::-1], top10_vals[::-1],
+            color=colors_t[::-1], edgecolor='white', linewidth=0.8)
+    ax.set_title(f'Top 10 features — {trait_name.upper()}',
+                 fontweight='bold', color=TRAIT_COLORS[trait_name])
+    ax.set_xlabel('|SHAP| moyen')
+    ax.grid(axis='x', alpha=0.3)
+
+    # Afficher la valeur sur chaque barre
+    for bar, val in zip(ax.patches, top10_vals[::-1]):
+        ax.text(bar.get_width() + 0.0005, bar.get_y() + bar.get_height()/2,
+                f'{val:.4f}', va='center', fontsize=8)
+
+plt.suptitle('Étape 8 — SHAP : contribution des SNPs à chaque trait\n'
+             '(bleu = SNP | orange = CNN | vert = autre)',
+             fontsize=12, fontweight='bold')
+plt.tight_layout()
+plt.savefig('etape8_shap_4traits.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+# ── GRAPHIQUE 3 : Waterfall — explication du meilleur croisement
+print('\nGraphique 3 : Waterfall — meilleur croisement')
+best_idx_8   = crossings_df['score_fixe'].idxmax()
+x_best_8     = pair_features[best_idx_8].reshape(1, -1)
+shap_best_8  = shap_per_trait['drought'][0]  # premier échantillon comme illustration
+
+waterfall_exp = shap.Explanation(
+    values        = shap_per_trait['drought'][0],
+    base_values   = explainer_drought8.expected_value,
+    data          = X_sample_8[0],
+    feature_names = feature_names_8
+)
+plt.figure(figsize=(10, 7))
+shap.plots.waterfall(waterfall_exp, max_display=15, show=False)
+plt.title('SHAP Waterfall — Décomposition drought pour le meilleur croisement\n'
+          'Chaque barre montre la contribution d\'un SNP à la prédiction finale',
+          fontsize=10, fontweight='bold')
+plt.tight_layout()
+plt.savefig('etape8_shap_waterfall.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+print('\nAnalyse SHAP SNPs terminée — 3 graphiques sauvegardés.')
+
+--- CELL 126 ---
+
+# ─────────────────────────────────────────────────────────────────────
+# 7.2 GENOTYPE OPTIMAL — La plante parfaite virtuelle
+# ─────────────────────────────────────────────────────────────────────
+print("\n7.2 Genotype Optimal — Plante parfaite virtuelle")
+print("="*60)
+
+# Pour chaque SNP, trouver la variete avec la valeur maximale sur les traits cibles
+poids_traits = {'drought': 0.4, 'salt': 0.3, 'yield': 0.2, 'disease': 0.1}
+df['score_global'] = sum(poids_traits[t] * df[t] for t in poids_traits)
+
+# Pour chaque SNP, prendre l'allele (0, 1 ou 2) de la variete avec le meilleur score global
+snp_cols_local = [c for c in df.columns if c.startswith('SNP')]
+
+genotype_optimal = {}
+for snp in snp_cols_local:
+    # Grouper par allele et prendre la moyenne du score global
+    best_allele = df.groupby(snp)['score_global'].mean().idxmax()
+    genotype_optimal[snp] = best_allele
+
+genotype_optimal['snp_activity'] = df.loc[df['score_global'].idxmax(), 'snp_activity']
+
+# ── CORRECTION : feature_cols_local sans les colonnes CNN ────────────
+feature_cols_local = snp_cols_local + ['snp_activity']  # 159 SNPs + snp_activity = 160
+x_optimal = np.array([genotype_optimal[f] for f in feature_cols_local]).reshape(1, -1)
+
+# Predire ses traits avec le meilleur modele
+if best_model_name in ['MLP (3 couches)', 'LSTM (2 couches)']:
+    x_sc = scaler.transform(x_optimal)
+    if best_model_name == 'MLP (3 couches)':
+        best_model_obj.eval()
+        with torch.no_grad():
+            traits_optimal = best_model_obj(torch.FloatTensor(x_sc)).numpy()[0]
+    else:
+        best_model_obj.eval()
+        with torch.no_grad():
+            traits_optimal = best_model_obj(torch.FloatTensor(x_sc).unsqueeze(-1)).numpy()[0]
+else:
+    traits_optimal = best_model_obj.predict(x_optimal)[0]
+
+print("Traits predits pour le GENOTYPE OPTIMAL :")
+print(f"  drought = {traits_optimal[0]:.4f}")
+print(f"  salt    = {traits_optimal[1]:.4f}")
+print(f"  yield   = {traits_optimal[2]:.4f}")
+print(f"  disease = {traits_optimal[3]:.4f}")
+score_opt = (0.4*traits_optimal[0] + 0.3*traits_optimal[1] +
+             0.2*traits_optimal[2] + 0.1*traits_optimal[3])
+print(f"  Score global = {score_opt:.4f}")
+
+# Comparer avec le meilleur croisement reel trouve en etape 5
+best_reel = crossings_df.sort_values('score_fixe', ascending=False).iloc[0]
+print(f"\nComparaison :")
+print(f"  Meilleur croisement reel  : score={best_reel['score_fixe']:.4f}")
+print(f"  Genotype optimal virtuel  : score={score_opt:.4f}")
+gain = (score_opt - best_reel['score_fixe']) / best_reel['score_fixe'] * 100
+print(f"  Gain theorique            : +{gain:.1f}%")

@@ -1,0 +1,1047 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Twin Blé — Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #f8f9fa; color: #1a1a1a; font-size: 13px; line-height: 1.5; }
+  .dash { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+  /* ── Header ── */
+  .header { display: flex; justify-content: space-between; align-items: center;
+             margin-bottom: 18px; padding-bottom: 14px;
+             border-bottom: 1px solid #e0e0e0; }
+  .header h1 { font-size: 17px; font-weight: 600; color: #111; }
+  .header p  { font-size: 12px; color: #888; margin-top: 2px; }
+  .badge { font-size: 11px; padding: 4px 12px; border-radius: 20px;
+            background: #e8f5ee; color: #1a7a4a; font-weight: 600; }
+
+  /* ── Phases ── */
+  .phases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+             margin-bottom: 16px; }
+  .phase { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 14px;
+            background: #fff; }
+  .phase.active { border-color: #1D9E75; background: #f0fbf5; }
+  .phase-num   { font-size: 10px; color: #aaa; font-weight: 600;
+                  text-transform: uppercase; letter-spacing: .05em; }
+  .phase-title { font-size: 13px; font-weight: 600; color: #222; margin: 3px 0 4px; }
+  .phase-desc  { font-size: 11px; color: #666; line-height: 1.4; }
+
+  /* ── Métriques ── */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+              margin-bottom: 16px; }
+  .metric { background: #fff; border: 1px solid #e8e8e8; border-radius: 8px;
+             padding: 14px 16px; }
+  .metric .lbl { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .metric .val { font-size: 22px; font-weight: 700; color: #222; }
+  .metric .sub { font-size: 11px; color: #aaa; margin-top: 2px; }
+  .metric.ok   .val { color: #0e6e44; }
+  .metric.warn .val { color: #b86a00; }
+  .metric.crit .val { color: #c0392b; }
+
+  /* ── Contrôles ── */
+  .controls { display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+               flex-wrap: wrap; }
+  .controls label { font-size: 12px; color: #555; font-weight: 500; }
+  select { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc;
+            border-radius: 6px; background: #fff; cursor: pointer; color: #222; }
+  select:hover { border-color: #1D9E75; }
+
+  /* ── Grille 2 colonnes ── */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+            margin-bottom: 14px; }
+  .card { background: #fff; border: 1px solid #e8e8e8; border-radius: 10px;
+           padding: 16px 18px; }
+  .card-title { font-size: 11px; font-weight: 600; color: #888;
+                 text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
+
+  /* ── Barres TWSO ── */
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .bar-label { font-size: 11px; color: #555; width: 120px; flex-shrink: 0;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 9px; background: #f0f0f0; border-radius: 5px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 5px; transition: width .5s ease; }
+  .bar-val   { font-size: 11px; color: #444; width: 52px; text-align: right; flex-shrink: 0; }
+  .pill { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; flex-shrink: 0; }
+  .pill.ok   { background: #e8f5ee; color: #0e6e44; }
+  .pill.warn { background: #fff3df; color: #b86a00; }
+  .pill.crit { background: #fdecea; color: #c0392b; }
+
+  /* ── Événements ── */
+  .event-list { max-height: 230px; overflow-y: auto; }
+  .ev { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0;
+         border-bottom: 1px solid #f0f0f0; }
+  .ev:last-child { border-bottom: none; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .dot.ok   { background: #1D9E75; }
+  .dot.warn { background: #EF9F27; }
+  .dot.crit { background: #E24B4A; }
+  .ev-text { font-size: 12px; color: #222; line-height: 1.4; }
+  .ev-day  { font-size: 11px; color: #aaa; margin-top: 1px; }
+
+  /* ── Seuils ── */
+  .seuil-row { display: flex; justify-content: space-between; align-items: center;
+                padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+  .seuil-row:last-child { border-bottom: none; }
+  .seuil-name { font-size: 12px; color: #444; }
+  .seuil-val { font-size: 12px; font-weight: 600; }
+  .seuil-val.ok   { color: #0e6e44; }
+  .seuil-val.warn { color: #b86a00; }
+  .seuil-val.crit { color: #c0392b; }
+
+  /* ── Chart ── */
+  .chart-wrap { position: relative; width: 100%; height: 190px; }
+
+  /* ── Footer ── */
+  .footer { font-size: 11px; color: #aaa; text-align: center; padding-top: 12px;
+             border-top: 1px solid #eee; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="dash">
+
+  <div class="header">
+    <div>
+      <h1>&#127807; Digital Twin Blé — Tableau de bord</h1>
+      <p>Tunisie · Maktar 624m · SimPy v5 + WOFOST 7.2 · IAAA-Lab (2024)</p>
+    </div>
+    <span class="badge">&#9679; Simulation terminée</span>
+  </div>
+
+  <div class="phases">
+    <div class="phase">
+      <div class="phase-num">Phase 1</div>
+      <div class="phase-title">Normes établies</div>
+      <div class="phase-desc">
+        TWSO baseline : <strong id="p-twso">—</strong> kg/ha<br>
+        LAI max norme : <strong id="p-lai">—</strong> m²/m²
+      </div>
+    </div>
+    <div class="phase active">
+      <div class="phase-num">Phase 2</div>
+      <div class="phase-title">SimPy data engine</div>
+      <div class="phase-desc">200 jours · météo synthétique · événements discrets</div>
+    </div>
+    <div class="phase">
+      <div class="phase-num">Phase 3</div>
+      <div class="phase-title">Twin WOFOST</div>
+      <div class="phase-desc" id="p-twin">— croisements évalués · scores vs normes</div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric ok" id="m-mean">
+      <div class="lbl">TWSO moyen</div>
+      <div class="val" id="v-mean">—</div>
+      <div class="sub">kg/ha</div>
+    </div>
+    <div class="metric" id="m-best">
+      <div class="lbl">Meilleur croisement</div>
+      <div class="val" id="v-best">—</div>
+      <div class="sub" id="v-bestname">kg/ha</div>
+    </div>
+    <div class="metric warn" id="m-alerts">
+      <div class="lbl">Avec alertes</div>
+      <div class="val" id="v-alerts">—</div>
+      <div class="sub" id="v-alertssub">sur — évalués</div>
+    </div>
+    <div class="metric" id="m-score">
+      <div class="lbl">Score moyen / norme</div>
+      <div class="val" id="v-score">—</div>
+      <div class="sub">1.0 = norme baseline</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label>Scénario :</label>
+    <select id="sel-sc" onchange="render()">
+      <option value="normal">Normal</option>
+      <option value="secheresse">Sécheresse</option>
+      <option value="canicule">Canicule</option>
+      <option value="optimal">Optimal</option>
+    </select>
+    <label style="margin-left:8px;">Seuil d'alerte :</label>
+    <select id="sel-seuil" onchange="render()">
+      <option value="0.85">85% — Warning</option>
+      <option value="0.70">70% — Critique</option>
+    </select>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Rendement TWSO — croisements vs norme</div>
+      <div id="bars"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Climatologie mensuelle — normes Tunisie</div>
+      <div class="chart-wrap">
+        <canvas id="meteoChart"
+          role="img"
+          aria-label="Températures mensuelles Tmin et Tmax à Maktar Tunisie janvier à décembre">
+          Températures : Tmin 3.5°C jan → 21.5°C août ; Tmax 13°C jan → 36.5°C août.
+        </canvas>
+      </div>
+      <div id="meteo-legend" style="display:flex;gap:14px;margin-top:8px;font-size:11px;color:#888;flex-wrap:wrap;"></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Événements SimPy — chronologie</div>
+      <div class="event-list" id="evts"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Seuils d'alerte — normes de référence</div>
+      <div id="seuils"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Réf : IAAA-Lab (2024) DOI 10.5281/zenodo.15697049 · Van Diepen et al. (1989) WOFOST · Lutz et al. (2019) SimPy
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const DATA = {
+  "twso_baseline": 9165.0,
+  "lai_max_baseline": 5.915,
+  "seuils": {
+    "genomique_zscore": 2.0,
+    "twso_critique_pct": 0.7,
+    "twso_warning_pct": 0.85,
+    "tmax_canicule": 38.0,
+    "pluie_stress": 2.0,
+    "vent_alerte": 10.0,
+    "dvs_retard_semis": 15,
+    "lai_insuffisant": 1.5
+  },
+  "meteo": {
+    "tmin": [
+      3.5,
+      4.0,
+      6.5,
+      9.5,
+      13.5,
+      18.0,
+      21.0,
+      21.5,
+      18.0,
+      14.0,
+      8.5,
+      4.5
+    ],
+    "tmax": [
+      13.0,
+      14.5,
+      17.5,
+      21.0,
+      26.5,
+      32.0,
+      36.0,
+      36.5,
+      31.0,
+      25.5,
+      18.5,
+      14.0
+    ],
+    "pluie": [
+      28,
+      22,
+      25,
+      20,
+      15,
+      8,
+      3,
+      5,
+      18,
+      28,
+      30,
+      32
+    ]
+  },
+  "croisements": [
+    {
+      "name": "SOOTY_9/RASCON_37//JUPARE C 2001/5/GREEN",
+      "twso": 10117.5,
+      "score": 1.0814,
+      "ratio": 1.1039,
+      "lai_max": 6.197,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.4047
+    },
+    {
+      "name": "SOOTY_9/RASCON_37//STORLOM/5/TOSKA_26/RA",
+      "twso": 9824.7,
+      "score": 1.0555,
+      "ratio": 1.072,
+      "lai_max": 6.096,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3931
+    },
+    {
+      "name": "CIRNO C 2008/8/TARRO_1/2*YUAN_1//AJAIA_1",
+      "twso": 9806.6,
+      "score": 1.0541,
+      "ratio": 1.07,
+      "lai_max": 6.093,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3927
+    },
+    {
+      "name": "HYPERNO/6/WID22202/4/SORA/2*PLATA_12//SO",
+      "twso": 9429.3,
+      "score": 1.022,
+      "ratio": 1.0288,
+      "lai_max": 5.984,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3824
+    },
+    {
+      "name": "SOOTY_9/RASCON_37//STORLOM/5/TOSKA_26/RA",
+      "twso": 9429.0,
+      "score": 1.0221,
+      "ratio": 1.0288,
+      "lai_max": 5.987,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3826
+    },
+    {
+      "name": "HYPERNO/12/SOOTY_9/RASCON_37//LLARETA IN",
+      "twso": 8902.8,
+      "score": 0.9774,
+      "ratio": 0.9714,
+      "lai_max": 5.834,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3815
+    },
+    {
+      "name": "ARMENT//2*SOOTY_9/RASCON_37/4/CNDO/PRIMA",
+      "twso": 8900.8,
+      "score": 0.9791,
+      "ratio": 0.9712,
+      "lai_max": 5.862,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3727
+    },
+    {
+      "name": "SOMAT_3/GREEN_22/4/GODRIN/GUTROS//DUKEM/",
+      "twso": 8765.1,
+      "score": 0.9687,
+      "ratio": 0.9564,
+      "lai_max": 5.839,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3763
+    },
+    {
+      "name": "SOMAT_3/GREEN_22/4/GODRIN/GUTROS//DUKEM/",
+      "twso": 8678.7,
+      "score": 0.9606,
+      "ratio": 0.9469,
+      "lai_max": 5.803,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3732
+    },
+    {
+      "name": "SOOTY_9/RASCON_37//STORLOM/5/TOSKA_26/RA",
+      "twso": 8630.5,
+      "score": 0.9542,
+      "ratio": 0.9417,
+      "lai_max": 5.756,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.366
+    },
+    {
+      "name": "SOOTY_9/RASCON_37//JUPARE C 2001/5/GREEN",
+      "twso": 8610.3,
+      "score": 0.952,
+      "ratio": 0.9395,
+      "lai_max": 5.742,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3657
+    },
+    {
+      "name": "SOOTY_9/RASCON_37//JUPARE C 2001/5/GREEN",
+      "twso": 8563.3,
+      "score": 0.9473,
+      "ratio": 0.9343,
+      "lai_max": 5.718,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3646
+    },
+    {
+      "name": "HI 8737  x  JANDAROI/5/SOOTY_9/RASCON_37",
+      "twso": 8424.7,
+      "score": 0.9154,
+      "ratio": 0.9192,
+      "lai_max": 5.381,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3797
+    },
+    {
+      "name": "HYPERNO/12/SOOTY_9/RASCON_37//LLARETA IN",
+      "twso": 8185.6,
+      "score": 0.8947,
+      "ratio": 0.8931,
+      "lai_max": 5.307,
+      "n_warn": 0,
+      "n_crit": 0,
+      "pred_yield": 0.3739
+    },
+    {
+      "name": "HYPERNO/12/SOOTY_9/RASCON_37//LLARETA IN",
+      "twso": 7726.4,
+      "score": 0.8519,
+      "ratio": 0.843,
+      "lai_max": 5.118,
+      "n_warn": 1,
+      "n_crit": 0,
+      "pred_yield": 0.3717
+    }
+  ],
+  "events": {
+    "normal": [
+      {
+        "jour": 0,
+        "date": "2024-11-01",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 0,
+        "date": "2024-11-01",
+        "type": "phenologie",
+        "severite": "INFO",
+        "description": "🌾 Stade phénologique : Semis (J+0)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 1,
+        "date": "2024-11-02",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 2,
+        "date": "2024-11-03",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 3,
+        "date": "2024-11-04",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 3,
+        "date": "2024-11-04",
+        "type": "meteo",
+        "severite": "WARNING",
+        "description": "💨 Vent fort — 10.2 m/s",
+        "valeur": 10.25
+      },
+      {
+        "jour": 4,
+        "date": "2024-11-05",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=1.5mm (norme=1.0mm/j)",
+        "valeur": 1.5
+      },
+      {
+        "jour": 5,
+        "date": "2024-11-06",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.8mm (norme=1.0mm/j)",
+        "valeur": 0.8
+      },
+      {
+        "jour": 6,
+        "date": "2024-11-07",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 7,
+        "date": "2024-11-08",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 8,
+        "date": "2024-11-09",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 9,
+        "date": "2024-11-10",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 10,
+        "date": "2024-11-11",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 11,
+        "date": "2024-11-12",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 12,
+        "date": "2024-11-13",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 13,
+        "date": "2024-11-14",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 14,
+        "date": "2024-11-15",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.1mm (norme=1.0mm/j)",
+        "valeur": 0.1
+      },
+      {
+        "jour": 15,
+        "date": "2024-11-16",
+        "type": "phenologie",
+        "severite": "INFO",
+        "description": "🌾 Stade phénologique : Levée (J+15)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 15,
+        "date": "2024-11-16",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 16,
+        "date": "2024-11-17",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=1.0mm (norme=1.0mm/j)",
+        "valeur": 1.0
+      }
+    ],
+    "secheresse": [
+      {
+        "jour": 0,
+        "date": "2024-11-01",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 0,
+        "date": "2024-11-01",
+        "type": "phenologie",
+        "severite": "INFO",
+        "description": "🌾 Stade phénologique : Semis (J+0)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 1,
+        "date": "2024-11-02",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 2,
+        "date": "2024-11-03",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 3,
+        "date": "2024-11-04",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 4,
+        "date": "2024-11-05",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 5,
+        "date": "2024-11-06",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 6,
+        "date": "2024-11-07",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 7,
+        "date": "2024-11-08",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 8,
+        "date": "2024-11-09",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 9,
+        "date": "2024-11-10",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 10,
+        "date": "2024-11-11",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 11,
+        "date": "2024-11-12",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 12,
+        "date": "2024-11-13",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 13,
+        "date": "2024-11-14",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 14,
+        "date": "2024-11-15",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 15,
+        "date": "2024-11-16",
+        "type": "phenologie",
+        "severite": "INFO",
+        "description": "🌾 Stade phénologique : Levée (J+15)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 15,
+        "date": "2024-11-16",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 16,
+        "date": "2024-11-17",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 17,
+        "date": "2024-11-18",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      }
+    ],
+    "optimal": [
+      {
+        "jour": 0,
+        "date": "2024-11-01",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 0,
+        "date": "2024-11-01",
+        "type": "phenologie",
+        "severite": "INFO",
+        "description": "🌾 Stade phénologique : Semis (J+0)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 1,
+        "date": "2024-11-02",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 2,
+        "date": "2024-11-03",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 5,
+        "date": "2024-11-06",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 6,
+        "date": "2024-11-07",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=1.3mm (norme=1.0mm/j)",
+        "valeur": 1.3
+      },
+      {
+        "jour": 7,
+        "date": "2024-11-08",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 8,
+        "date": "2024-11-09",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 9,
+        "date": "2024-11-10",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 10,
+        "date": "2024-11-11",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 11,
+        "date": "2024-11-12",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 12,
+        "date": "2024-11-13",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.6mm (norme=1.0mm/j)",
+        "valeur": 0.6
+      },
+      {
+        "jour": 13,
+        "date": "2024-11-14",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 14,
+        "date": "2024-11-15",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 15,
+        "date": "2024-11-16",
+        "type": "phenologie",
+        "severite": "INFO",
+        "description": "🌾 Stade phénologique : Levée (J+15)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 15,
+        "date": "2024-11-16",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 16,
+        "date": "2024-11-17",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 17,
+        "date": "2024-11-18",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 18,
+        "date": "2024-11-19",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=0.0mm (norme=1.0mm/j)",
+        "valeur": 0.0
+      },
+      {
+        "jour": 19,
+        "date": "2024-11-20",
+        "type": "stress",
+        "severite": "WARNING",
+        "description": "💧 Stress hydrique — Pluie=1.0mm (norme=1.0mm/j)",
+        "valeur": 1.0
+      }
+    ]
+  }
+};
+
+const SC_FACTORS = {
+  normal:     { f: 1.00, label: 'Normal' },
+  secheresse: { f: 0.78, label: 'Sécheresse' },
+  canicule:   { f: 0.83, label: 'Canicule' },
+  optimal:    { f: 1.15, label: 'Optimal' },
+};
+
+function pct(v) { return parseFloat((v * 100).toFixed(1)); }
+
+function cls(ratio, seuil) {
+  if (ratio >= seuil)  return 'ok';
+  if (ratio >= 0.70)  return 'warn';
+  return 'crit';
+}
+
+function color(c) {
+  return c === 'ok' ? '#1D9E75' : c === 'warn' ? '#EF9F27' : '#E24B4A';
+}
+
+function render() {
+  const sc    = document.getElementById('sel-sc').value;
+  const seuil = parseFloat(document.getElementById('sel-seuil').value);
+  const factor = SC_FACTORS[sc].f;
+  const baseline = DATA.twso_baseline;
+
+  // Ajuster TWSO selon scénario
+  const rows = DATA.croisements.map(r => ({
+    ...r,
+    twso: Math.round(r.twso * factor),
+    ratio: (r.twso * factor) / baseline,
+  })).sort((a, b) => b.twso - a.twso);
+
+  const maxTWSO = rows[0]?.twso || baseline;
+  const mean    = rows.length ? Math.round(rows.reduce((s, r) => s + r.twso, 0) / rows.length) : 0;
+  const best    = rows[0] || {};
+  const scoreMean = rows.length ? (rows.reduce((s, r) => s + r.ratio, 0) / rows.length).toFixed(3) : '—';
+  const nAlerts = rows.filter(r => r.ratio < seuil).length;
+
+  // Métriques
+  document.getElementById('p-twso').textContent = baseline.toLocaleString('fr-FR');
+  document.getElementById('p-lai').textContent  = DATA.lai_max_baseline.toFixed(2);
+  document.getElementById('p-twin').textContent = rows.length + ' croisements évalués · scores vs normes';
+  document.getElementById('v-mean').textContent = mean.toLocaleString('fr-FR');
+  document.getElementById('v-best').textContent = best.twso ? best.twso.toLocaleString('fr-FR') : '—';
+  document.getElementById('v-bestname').textContent = best.name ? best.name.replace('CV_','').replace('_x_',' × ') : '';
+  document.getElementById('v-alerts').textContent = nAlerts;
+  document.getElementById('v-alertssub').textContent = 'sur ' + rows.length + ' évalués';
+  document.getElementById('v-score').textContent = scoreMean;
+
+  const sm = parseFloat(scoreMean);
+  document.getElementById('m-score').className = 'metric ' + cls(sm, seuil);
+  document.getElementById('m-alerts').className = 'metric ' + (nAlerts === 0 ? 'ok' : nAlerts < 4 ? 'warn' : 'crit');
+
+  // Barres
+  document.getElementById('bars').innerHTML = rows.map(r => {
+    const c = cls(r.ratio, seuil);
+    const barPct = Math.round(r.twso / maxTWSO * 100);
+    const shortName = r.name.replace('CV_','').replace('_x_',' × ');
+    return `<div class="bar-row">
+      <span class="bar-label" title="${shortName}">${shortName}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${barPct}%;background:${color(c)}"></div></div>
+      <span class="bar-val">${r.twso.toLocaleString('fr-FR')}</span>
+      <span class="pill ${c}">${pct(r.ratio)}%</span>
+    </div>`;
+  }).join('');
+
+  // Événements
+  const evts = DATA.events[sc] || DATA.events['normal'] || [];
+  document.getElementById('evts').innerHTML = evts.map(e => {
+    const c = e.severite === 'CRITIQUE' ? 'crit' : e.severite === 'WARNING' ? 'warn' : 'ok';
+    return `<div class="ev">
+      <span class="dot ${c}"></span>
+      <div>
+        <div class="ev-text">${e.description}</div>
+        <div class="ev-day">Jour ${e.jour} · ${e.date} · ${e.severite}</div>
+      </div>
+    </div>`;
+  }).join('') || '<p style="color:#aaa;font-size:12px;padding:8px 0;">Aucun événement chargé.</p>';
+}
+
+// Seuils (statiques)
+const SEUILS = [
+  { n: 'TWSO critique',     v: '< 70% norme (' + Math.round(DATA.twso_baseline * 0.70) + ' kg/ha)', c: 'crit' },
+  { n: 'TWSO warning',      v: '< 85% norme (' + Math.round(DATA.twso_baseline * 0.85) + ' kg/ha)', c: 'warn' },
+  { n: 'Canicule Tmax',     v: '> ' + DATA.seuils.tmax_canicule + '°C', c: 'crit' },
+  { n: 'Stress hydrique',   v: 'Pluie < ' + DATA.seuils.pluie_stress + ' mm/j', c: 'warn' },
+  { n: 'Vent fort',         v: '> ' + DATA.seuils.vent_alerte + ' m/s', c: 'warn' },
+  { n: 'LAI insuffisant',   v: 'LAI < ' + DATA.seuils.lai_insuffisant + ' m²/m²', c: 'warn' },
+  { n: 'TWSO baseline',     v: DATA.twso_baseline.toLocaleString('fr-FR') + ' kg/ha', c: 'ok' },
+  { n: 'LAI max norme',     v: DATA.lai_max_baseline.toFixed(2) + ' m²/m²', c: 'ok' },
+];
+document.getElementById('seuils').innerHTML = SEUILS.map(s =>
+  `<div class="seuil-row">
+    <span class="seuil-name">${s.n}</span>
+    <span class="seuil-val ${s.c}">${s.v}</span>
+  </div>`
+).join('');
+
+// Chart météo
+const ctx = document.getElementById('meteoChart').getContext('2d');
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'],
+    datasets: [
+      { label:'Tmin (°C)', data: DATA.meteo.tmin, borderColor:'#378ADD',
+         fill:false, tension:0.3, pointRadius:3, pointStyle:'circle',
+         borderDash:[4,3] },
+      { label:'Tmax (°C)', data: DATA.meteo.tmax, borderColor:'#E24B4A',
+         fill:false, tension:0.3, pointRadius:3, pointStyle:'rect' },
+      { label:'Pluie (mm)', data: DATA.meteo.pluie, borderColor:'#1D9E75',
+         fill:false, tension:0.3, pointRadius:3, pointStyle:'triangle',
+         yAxisID:'y2' },
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    plugins: { legend: { display:false } },
+    scales: {
+      x:  { ticks: { font:{size:10}, maxRotation:0 }, grid:{ color:'rgba(0,0,0,.05)' } },
+      y:  { ticks: { font:{size:10} }, grid:{ color:'rgba(0,0,0,.05)' } },
+      y2: { position:'right', ticks:{ font:{size:10}, color:'#1D9E75' },
+             grid:{ display:false } },
+    }
+  }
+});
+
+document.getElementById('meteo-legend').innerHTML = [
+  ['#378ADD','Tmin (°C)'], ['#E24B4A','Tmax (°C)'], ['#1D9E75','Pluie mm (axe droite)']
+].map(([c,l]) =>
+  `<span style="display:flex;align-items:center;gap:4px;">
+    <span style="width:12px;height:2px;background:${c};display:inline-block;border-radius:1px;"></span>
+    ${l}</span>`
+).join('');
+
+render();
+</script>
+</body>
+</html>

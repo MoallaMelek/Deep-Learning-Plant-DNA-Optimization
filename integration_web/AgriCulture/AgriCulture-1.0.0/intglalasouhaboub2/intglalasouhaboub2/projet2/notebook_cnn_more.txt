@@ -1,0 +1,806 @@
+--- CELL 9 ---
+# ── 4.3-A  Choix du nombre de clusters (méthode du coude) ────
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+import matplotlib.pyplot as plt
+
+snp_matrix = df[snp_cols].values
+
+inertias, silhouettes = [], []
+K_range = range(2, 16)
+
+for k in K_range:
+    km = KMeans(n_clusters=k, random_state=42, n_init=10)
+    labels = km.fit_predict(snp_matrix)
+    inertias.append(km.inertia_)
+    silhouettes.append(silhouette_score(snp_matrix, labels, sample_size=500))
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+ax1.plot(K_range, inertias, 'o-', color='steelblue')
+ax1.set_xlabel('Nombre de clusters K')
+ax1.set_ylabel('Inertie (Within-cluster SSE)')
+ax1.set_title('Méthode du coude')
+ax1.grid(alpha=0.3)
+
+ax2.plot(K_range, silhouettes, 's-', color='darkorange')
+ax2.set_xlabel('Nombre de clusters K')
+ax2.set_ylabel('Score silhouette')
+ax2.set_title('Score silhouette')
+ax2.grid(alpha=0.3)
+
+plt.tight_layout()
+plt.savefig('elbow_silhouette.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+best_k_sil = K_range[silhouettes.index(max(silhouettes))]
+print(f"K optimal (silhouette max) : {best_k_sil}")
+print("→ Choisir N_CLUSTERS = ce K dans la cellule suivante")
+--- CELL 11 ---
+# ── 4.3-B1  KMeans sur les SNPs (visualisation des clusters) ───
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
+
+N_CLUSTERS = 5  
+# KMeans sur les SNPs
+km = KMeans(n_clusters=N_CLUSTERS, random_state=42, n_init=10)
+df['cluster'] = km.fit_predict(snp_matrix)
+
+print(f"Clusters créés : {df['cluster'].value_counts().sort_index().to_dict()}")
+
+# PCA pour visualisation 2D
+pca = PCA(n_components=2)
+coords = pca.fit_transform(df[snp_cols].values)
+
+plt.figure(figsize=(8, 5))
+scatter = plt.scatter(coords[:, 0], coords[:, 1], c=df['cluster'], cmap='tab10', s=40, alpha=0.8)
+plt.colorbar(scatter, label='Cluster')
+plt.xlabel(f'PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)')
+plt.ylabel(f'PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)')
+plt.title('Visualisation KMeans des SNPs')
+plt.tight_layout()
+plt.show()
+--- CELL 13 ---
+# ── 4.3-B3  CLASSIFIEUR "BON PARENT" — test + accuracy ───────────────
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Vérité terrain : est-ce que la variété a été retenue comme parent ?
+good_parent_names = set(df_parents['variety_name'].unique())
+df['est_bon_parent'] = df['variety_name'].apply(
+    lambda x: 1 if x in good_parent_names else 0
+)
+
+print(f"Labels : {df['est_bon_parent'].value_counts().to_dict()}")
+print(f"  → {df['est_bon_parent'].sum()} bons parents / {len(df)} variétés")
+
+# Features : SNPs + traits phénotypiques + CNN
+features_parent = (snp_cols
+                   + target_cols
+                   + ['snp_activity', 'health_score_cnn',
+                      'leaf_surface_cnn', 'plant_size_cnn'])
+features_parent = [f for f in features_parent if f in df.columns]
+
+X_parent = df[features_parent].fillna(0).values
+y_parent = df['est_bon_parent'].values
+
+# Classifieur
+clf_parent = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=8,
+    class_weight='balanced',
+    random_state=42
+)
+
+# Accuracy 5-fold cross-validation
+cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+cv_acc  = cross_val_score(clf_parent, X_parent, y_parent, cv=cv, scoring='accuracy')
+cv_f1   = cross_val_score(clf_parent, X_parent, y_parent, cv=cv, scoring='f1')
+cv_prec = cross_val_score(clf_parent, X_parent, y_parent, cv=cv, scoring='precision')
+cv_rec  = cross_val_score(clf_parent, X_parent, y_parent, cv=cv, scoring='recall')
+
+print("\n══════════════════════════════════════════════════════")
+print(" ACCURACY — Classifieur 'Bon Parent' (5-fold CV)")
+print("══════════════════════════════════════════════════════")
+print(f"  Accuracy  : {cv_acc.mean():.4f}  ± {cv_acc.std():.4f}")
+print(f"  F1-score  : {cv_f1.mean():.4f}  ± {cv_f1.std():.4f}")
+print(f"  Precision : {cv_prec.mean():.4f}  ± {cv_prec.std():.4f}")
+print(f"  Recall    : {cv_rec.mean():.4f}  ± {cv_rec.std():.4f}")
+print(f"  Par fold  : {cv_acc.round(3)}")
+
+# Matrice de confusion (train/test split pour visualisation)
+X_tr, X_te, y_tr, y_te = train_test_split(
+    X_parent, y_parent, test_size=0.2, stratify=y_parent, random_state=42
+)
+clf_parent.fit(X_tr, y_tr)
+y_pred_te = clf_parent.predict(X_te)
+
+fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+
+sns.heatmap(confusion_matrix(y_te, y_pred_te),
+            annot=True, fmt='d', cmap='Blues',
+            xticklabels=['Prédit ✗', 'Prédit ✓'],
+            yticklabels=['Réel ✗', 'Réel ✓'], ax=axes[0])
+axes[0].set_title('Matrice de confusion — Bon Parent', fontweight='bold')
+
+importances = clf_parent.feature_importances_
+top_idx     = np.argsort(importances)[::-1][:15]
+top_names   = [features_parent[i] for i in top_idx]
+top_vals    = importances[top_idx]
+colors_fi   = ['#4e79a7' if n.startswith('SNP') else
+               '#f28e2b' if 'cnn' in n else '#59a14f'
+               for n in top_names]
+
+axes[1].barh(top_names[::-1], top_vals[::-1],
+             color=colors_fi[::-1], edgecolor='white')
+axes[1].set_xlabel('Importance')
+axes[1].set_title('Top 15 features — décision "Bon Parent"', fontweight='bold')
+axes[1].grid(axis='x', alpha=0.3)
+
+plt.suptitle('Étape 4 — Classifieur "Bon Parent"',
+             fontsize=13, fontweight='bold', y=1.02)
+plt.tight_layout()
+plt.savefig('bon_parent_accuracy.png', dpi=150, bbox_inches='tight')
+plt.show()
+
+# Entraînement final sur tout le dataset
+clf_parent.fit(X_parent, y_parent)
+
+# ── Fonction de test ──────────────────────────────────────────────────
+def tester_bon_parent(nom_variete):
+    match = df[df['variety_name'].str.contains(
+        nom_variete, case=False, na=False)]
+
+    if match.empty:
+        print(f"❌ '{nom_variete}' introuvable.")
+        print(f"   Exemples : {df['variety_name'].dropna().sample(5).tolist()}")
+        return
+
+    variete   = match.iloc[0]
+    x_input   = variete[features_parent].fillna(0).values.reshape(1, -1)
+    pred      = clf_parent.predict(x_input)[0]
+    confiance = clf_parent.predict_proba(x_input)[0][1] * 100
+
+    print(f"\n{'═'*50}")
+    print(f" Variété : {variete['variety_name']}")
+    print(f"{'═'*50}")
+    print(f"  drought={variete['drought']:.3f} | salt={variete['salt']:.3f}"
+          f" | yield={variete['yield']:.3f} | disease={variete['disease']:.3f}")
+    print(f"\n  ► {'✅ BON PARENT' if pred == 1 else '❌ PAS recommandé'}")
+    print(f"  ► Confiance : {confiance:.1f}%")
+    print(f"  ► Déjà dans df_parents : {'OUI' if variete['variety_name'] in good_parent_names else 'NON'}")
+
+    if pred == 0:
+        pf = min(['drought','salt','yield','disease'], key=lambda t: variete[t])
+        print(f"  ► Point faible : {pf} ({variete[pf]:.3f})")
+
+# ── Tests ─────────────────────────────────────────────────────────────
+tester_bon_parent("CIRNO C 2008")
+tester_bon_parent("Khiar")
+--- CELL 21 ---
+from sklearn.pipeline import Pipeline
+from sklearn.decomposition import PCA
+from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import Ridge
+from sklearn.multioutput import MultiOutputRegressor
+
+param_grid_ridge = {
+    'pca__n_components'       : [20, 50, 80],
+    'ridge__estimator__alpha' : [0.01, 0.1, 1.0, 10.0]
+}
+
+pipeline_ridge = Pipeline([
+    ('pca', PCA()),
+    ('ridge', MultiOutputRegressor(Ridge()))
+])
+
+gs_ridge = GridSearchCV(pipeline_ridge, param_grid_ridge, cv=kf, scoring='r2')
+gs_ridge.fit(X_train, Y_train)
+
+# Meilleur modèle
+ridge = gs_ridge.best_estimator_
+
+# Prédictions
+Y_pred_ridge = ridge.predict(X_test)
+
+print("Modèle Ridge entraîné avec succès")
+
+res_ridge = evaluate_model("Ridge Regression", Y_test, Y_pred_ridge, target_cols)
+all_results.append(res_ridge)
+--- CELL 23 ---
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.ensemble import RandomForestRegressor
+
+param_dist_rf = {
+    'n_estimators': [100, 200],
+    'max_depth': [6, 10, None],
+    'min_samples_leaf': [2, 3],
+}
+
+gs_rf = RandomizedSearchCV(
+    RandomForestRegressor(random_state=42),
+    param_dist_rf,
+    n_iter=6,
+    cv=kf,
+    scoring='neg_mean_absolute_error',
+    random_state=42
+)
+
+gs_rf.fit(X_train, Y_train)
+
+rf = gs_rf.best_estimator_
+Y_pred_rf = rf.predict(X_test)
+res_rf = evaluate_model(
+    "Random Forest",
+    Y_test,
+    Y_pred_rf,
+    target_cols
+)
+
+all_results.append(res_rf)
+--- CELL 25 ---
+import xgboost as xgb
+from sklearn.multioutput import MultiOutputRegressor
+from sklearn.model_selection import RandomizedSearchCV
+
+param_dist_xgb = {
+    'estimator__n_estimators': [100, 200],
+    'estimator__max_depth': [4, 6],
+    'estimator__learning_rate': [0.05, 0.1]
+}
+
+gs_xgb = RandomizedSearchCV(
+    MultiOutputRegressor(xgb.XGBRegressor(random_state=42, verbosity=0)),
+    param_dist_xgb,
+    n_iter=6,
+    cv=kf,
+    scoring='r2',
+    random_state=42
+)
+
+gs_xgb.fit(X_train, Y_train)
+
+xgb_model = gs_xgb.best_estimator_
+Y_pred_xgb = xgb_model.predict(X_test)
+res_xgb = evaluate_model(
+    "XGBoost",
+    Y_test,
+    Y_pred_xgb,
+    target_cols
+)
+
+all_results.append(res_xgb)
+--- CELL 31 ---
+param_dist_lgb = {
+    'estimator__n_estimators' : [100, 200],
+    'estimator__max_depth'    : [6, 8],
+    'estimator__learning_rate': [0.05, 0.1],
+    'estimator__num_leaves'   : [31, 63],
+    'estimator__subsample'    : [0.8, 1.0],
+}
+gs_lgb = RandomizedSearchCV(
+    MultiOutputRegressor(lgb.LGBMRegressor(random_state=42, verbose=-1)),
+    param_dist_lgb,
+    n_iter=6, cv=3, scoring='r2',
+    random_state=42, n_jobs=1
+)
+gs_lgb.fit(X_train, Y_train)
+print(f"Meilleurs parametres LightGBM : {gs_lgb.best_params_}")
+print(f"Meilleur R2 CV                : {gs_lgb.best_score_:.4f}")
+
+lgb_model  = gs_lgb.best_estimator_
+Y_pred_lgb = lgb_model.predict(X_test)
+
+cv_scores_lgb = cross_val_score(lgb_model, X, Y, cv=kf, scoring='r2', n_jobs=1)
+print(f"R2 par fold : {cv_scores_lgb.round(3)}")
+print(f"R2 moyen    : {cv_scores_lgb.mean():.4f} | Ecart-type : {cv_scores_lgb.std():.4f}")
+cv_results['LightGBM'] = cv_scores_lgb
+
+res_lgb = evaluate_model("LightGBM", Y_test, Y_pred_lgb, target_cols)
+all_results.append(res_lgb)
+--- CELL 38 ---
+if best_model_name in ['MLP (3 couches)']:
+    pair_features_sc = scaler.transform(pair_features)
+    if best_model_name == 'MLP (3 couches)':
+        best_model_obj.eval()
+        with torch.no_grad():
+            pred_pairs = best_model_obj(torch.FloatTensor(pair_features_sc)).numpy()
+    else:
+        best_model_obj.eval()
+        with torch.no_grad():
+            pred_pairs = best_model_obj(torch.FloatTensor(pair_features_sc).unsqueeze(-1)).numpy()
+else:
+    pred_pairs = best_model_obj.predict(pair_features)
+
+# ── Extraire les colonnes SNP depuis pair_features ──────────────────
+# pair_features contient : 159 SNPs + snp_activity → on garde les SNPs uniquement
+n_snp = len(snp_cols)  # 159
+
+# Construire le DataFrame SNPs des croisements
+snp_pairs_df = pd.DataFrame(
+    pair_features[:, :n_snp],
+    columns=snp_cols
+)
+
+# ── Construire crossings_df avec traits prédits + SNPs ──────────────
+crossings_df = pd.DataFrame({
+    'Croisement'   : pair_names,
+    'pred_drought' : pred_pairs[:, 0],
+    'pred_salt'    : pred_pairs[:, 1],
+    'pred_yield'   : pred_pairs[:, 2],
+    'pred_disease' : pred_pairs[:, 3],
+})
+
+# Ajouter les colonnes SNP à crossings_df
+crossings_df = pd.concat([crossings_df, snp_pairs_df], axis=1)
+
+print(f"Predictions faites avec : {best_model_name}")
+print(f"Nombre de descendants virtuels : {len(crossings_df)}")
+print(f"Colonnes total : {len(crossings_df.columns)} (5 infos + {n_snp} SNPs)")
+print(f"  Exemple : {crossings_df.iloc[0]['Croisement']}")
+print(f"    drought={crossings_df.iloc[0]['pred_drought']:.4f} | salt={crossings_df.iloc[0]['pred_salt']:.4f} | yield={crossings_df.iloc[0]['pred_yield']:.4f} | disease={crossings_df.iloc[0]['pred_disease']:.4f}")
+print(f"    SNP_1={crossings_df.iloc[0]['SNP_1']} | SNP_2={crossings_df.iloc[0]['SNP_2']} | ... | SNP_{n_snp}={crossings_df.iloc[0][snp_cols[-1]]}")
+
+# ✅ EXPORT EXCEL
+nom_fichier_excel = "predictions_croisements.xlsx"
+crossings_df.to_excel(nom_fichier_excel, index=False)
+print(f"\n📄 Fichier Excel généré : {nom_fichier_excel}")
+print(f"   Structure : Croisement | pred_drought | pred_salt | pred_yield | pred_disease | SNP_1 ... SNP_{n_snp}")
+--- CELL 48 ---
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestRegressor as RFR
+from sklearn.preprocessing import MinMaxScaler
+
+X_rank = crossings_df[['pred_drought','pred_salt','pred_yield','pred_disease']].values
+y_rank = crossings_df['score_fixe'].values
+
+rf_rank = RFR(n_estimators=200, max_depth=8, random_state=42)
+rf_rank.fit(X_rank, y_rank)
+crossings_df['score_rf'] = rf_rank.predict(X_rank)
+
+traits      = ['pred_drought','pred_salt','pred_yield','pred_disease']
+importances = rf_rank.feature_importances_
+
+print("Poids appris par Random Forest :")
+for t, imp in zip(traits, importances):
+    print(f"  {t:15s} -> {imp:.4f} ({imp*100:.1f}%)")
+
+top_rf = crossings_df.sort_values('score_rf', ascending=False).head(10)
+print("\nTOP 10 — Random Forest Ranking")
+display(top_rf[['Croisement','pred_drought','pred_salt',
+                'pred_yield','pred_disease','score_rf']].round(4))
+
+fig, ax = plt.subplots(figsize=(8, 4))
+bars = ax.bar(['drought','salt','yield','disease'],
+              importances * 100,
+              color=['#e15759','#4e79a7','#59a14f','#f28e2b'],
+              edgecolor='white', linewidth=1.5)
+ax.set_ylabel('Importance (%)')
+ax.set_title('Poids appris par Random Forest — Contribution de chaque trait', fontweight='bold')
+for bar, val in zip(bars, importances * 100):
+    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.3,
+            f'{val:.1f}%', ha='center', fontweight='bold')
+ax.grid(axis='y', alpha=0.3)
+plt.tight_layout()
+plt.savefig('rf_feature_importance_etape5.png', dpi=150)
+plt.show()
+--- CELL 54 ---
+np.random.seed(42)
+
+population_size = 100
+generations     = 50
+
+population = np.random.randint(0, len(crossings_df), population_size)
+
+for gen in range(generations):
+    X_pop        = pair_features[population]
+    predictions  = xgb_model.predict(X_pop)
+    drought_vals = predictions[:, 0]
+    yield_vals   = predictions[:, 2]
+
+    front = []
+    for i in range(len(population)):
+        dominated = False
+        for j in range(len(population)):
+            if (drought_vals[j] >= drought_vals[i] and yield_vals[j] >= yield_vals[i]) and \
+               (drought_vals[j] >  drought_vals[i] or  yield_vals[j] >  yield_vals[i]):
+                dominated = True
+                break
+        if not dominated:
+            front.append(i)
+
+    
+    new_population = [population[i] for i in front]
+    while len(new_population) < population_size:
+        idx     = population[np.random.choice(front)]
+        new_idx = int(np.clip(idx + np.random.randint(-5, 5), 0, len(crossings_df)-1))
+        new_population.append(new_idx)
+
+    population = np.array(new_population)
+
+X_pop        = pair_features[population]
+predictions  = xgb_model.predict(X_pop)
+drought_vals = predictions[:, 0]
+yield_vals   = predictions[:, 2]
+
+front = []
+for i in range(len(population)):
+    dominated = False
+    for j in range(len(population)):
+        if (drought_vals[j] >= drought_vals[i] and yield_vals[j] >= yield_vals[i]) and \
+           (drought_vals[j] >  drought_vals[i] or  yield_vals[j] >  yield_vals[i]):
+            dominated = True
+            break
+    if not dominated:
+        front.append(i)
+
+pareto_drought_xgb = drought_vals[front]
+pareto_yield_xgb   = yield_vals[front]
+
+print(f"✅ NSGA-II + XGBoost (sans pymoo) terminé")
+print(f"   Solutions Pareto : {len(front)}")
+print(f"   Drought max : {pareto_drought_xgb.max():.4f}")
+print(f"   Yield max   : {pareto_yield_xgb.max():.4f}")
+
+plt.figure(figsize=(8, 5))
+plt.scatter(pareto_drought_xgb, pareto_yield_xgb,
+            c='#f28e2b', s=80, edgecolors='white', linewidths=1.5, zorder=3)
+plt.xlabel('drought prédit (↑ mieux)', fontsize=12)
+plt.ylabel('yield prédit (↑ mieux)', fontsize=12)
+plt.title('Front de Pareto — NSGA-II + XGBoost Surrogate\ndrought vs yield',
+          fontweight='bold')
+plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.savefig('pareto_nsga2_xgb.png', dpi=150)
+plt.show()
+--- CELL 79 ---
+def _scorer_partenaires(source, top_n=5, ensembl_cache=None):
+    """
+    Parcourt toutes les variétés, calcule le score F1 prédit et
+    construit les séquences ADN pour les top_n meilleurs croisements.
+    """
+    if source is None:
+        return None
+
+    label_A   = source['label_A']
+    traits_A  = source['traits_A']
+    featA     = source['featA']
+    snp_raw_A = source['snp_raw_A']
+    snpA_enc  = source['snpA_enc']
+
+    print(f"\n✅ Variété source : {label_A}")
+    print(f"   drought={traits_A['drought']:.3f} | salt={traits_A['salt']:.3f} | "
+          f"yield={traits_A['yield']:.3f} | disease={traits_A['disease']:.3f}")
+    print(f"\n🔍 Scoring de {len(df)} partenaires potentiels...\n")
+
+    # ── Résolution du modèle de prédiction ──────────────────────────────────
+    # Utilise xgb_model (chargé en Partie B) ; fallback score fixe si absent
+    try:
+        _use_xgb = True
+        _ = xgb_model
+    except NameError:
+        _use_xgb = False
+        print("⚠️  xgb_model non disponible → scoring par traits directs")
+
+    resultats = []
+    for idx_B, variete_B in df.iterrows():
+        if variete_B['variety_name'] == label_A:
+            continue
+
+        featB      = variete_B[feature_cols].values.astype(float)
+        descendant = (featA + featB) / 2
+        snp_raw_B  = df_snp_raw.iloc[idx_B] if idx_B < len(df_snp_raw) else None
+
+        dna_A, dna_B, dna_fille, src_A, src_B, src_F = _construire_sequences_trio(
+            variete_A_row=source['variete_A'], variete_B_row=snp_raw_B,
+            snp_raw_A=snp_raw_A, snp_raw_B=snp_raw_B,
+            snpA_enc=snpA_enc, df_snp_raw=df_snp_raw,
+            snp_raw_cols=_GENO_COLS, snp_cols=snp_cols,
+            mapping_snp=mapping_snp,
+            ensembl_cache=ensembl_cache,  # ← séquences pré-téléchargées
+        )
+
+        # ── Prédiction des traits du descendant F1 ──────────────────────────
+        if _use_xgb:
+            pred = xgb_model.predict(descendant.reshape(1, -1))[0]
+        else:
+            # Fallback : moyenne des traits parents (sans modèle)
+            def _safe_trait(series, col, default=0.5):
+                val = series[col] if col in series.index else default
+                return float(val) if not pd.isna(val) else default
+            pred = np.array([
+                (_safe_trait(variete_B, 'drought') + source['traits_A'].get('drought', 0.5)) / 2,
+                (_safe_trait(variete_B, 'salt')    + source['traits_A'].get('salt',    0.5)) / 2,
+                (_safe_trait(variete_B, 'yield')   + source['traits_A'].get('yield',   0.5)) / 2,
+                (_safe_trait(variete_B, 'disease') + source['traits_A'].get('disease', 0.5)) / 2,
+            ])
+
+        score = 0.4*pred[0] + 0.3*pred[1] + 0.2*pred[2] + 0.1*pred[3]
+        resultats.append({
+            'Partenaire'   : variete_B['variety_name'],
+            'idx_B'        : idx_B,
+            'pred_drought' : round(float(pred[0]), 4),
+            'pred_salt'    : round(float(pred[1]), 4),
+            'pred_yield'   : round(float(pred[2]), 4),
+            'pred_disease' : round(float(pred[3]), 4),
+            'score'        : round(float(score), 4),
+            'dna_A'        : dna_A, 'dna_B': dna_B, 'dna_fille': dna_fille,
+            'src_A'        : src_A, 'src_B': src_B,  'src_F': src_F,
+        })
+
+    return (pd.DataFrame(resultats)
+              .sort_values('score', ascending=False)
+              .head(top_n)
+              .reset_index(drop=True))
+
+print("✅ Fonction de scoring définie.")
+--- CELL 86 ---
+import tensorflow as tf
+import numpy as np
+from PIL import Image
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+import matplotlib.pyplot as plt
+import io
+
+# ── Adapter ce chemin selon votre environnement ──────────────────────
+CNN_MODEL_PATH = "/kaggle/input/datasets/sarahbenattia/1m-apae3qji-tmt5e6cwxw/wheat_classifier.h5"
+# Sur un Jupyter local : CNN_MODEL_PATH = "wheat_classifier.h5"
+# ─────────────────────────────────────────────────────────────────────
+
+CNN_CLASSES = ['disease', 'healthy', 'stress']   # ordre alphabétique Keras
+IMG_SIZE    = (224, 224)
+
+cnn_model = tf.keras.models.load_model(CNN_MODEL_PATH)
+
+print(f"✅ CNN chargé depuis : {CNN_MODEL_PATH}")
+print(f"   Classes détectées : {CNN_CLASSES}")
+print(f"   Taille d'entrée   : {IMG_SIZE}")
+
+--- CELL 88 ---
+def _pretraiter_image(img_bytes):
+    """Redimensionne et normalise une image depuis des bytes bruts → tensor (1,224,224,3)."""
+    img = Image.open(io.BytesIO(img_bytes)).convert("RGB").resize(IMG_SIZE)
+    arr = np.array(img, dtype=np.float32) / 255.0
+    return np.expand_dims(arr, axis=0)
+
+def _predire_classe(img_bytes):
+    """
+    Retourne (classe_predite: str, confiance: float, probs: dict).
+    La classe est l'une de : 'healthy', 'stress', 'disease'.
+    """
+    tensor = _pretraiter_image(img_bytes)
+    probs  = cnn_model.predict(tensor, verbose=0)[0]
+    idx    = int(np.argmax(probs))
+    return CNN_CLASSES[idx], float(probs[idx]), dict(zip(CNN_CLASSES, probs.tolist()))
+
+print("✅ Fonctions de prédiction CNN définies.")
+
+--- CELL 92 ---
+import io
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+from IPython.display import display, clear_output
+import ipywidgets as widgets
+
+
+def lancer_interface_cnn():
+    """
+    Interface ipywidgets complète :
+    upload photo → affichage image → CNN → mapping → recommandation de croisement.
+    """
+
+    # ── Widgets ───────────────────────────────────────────────────────
+    upload_btn = widgets.FileUpload(
+        accept='.jpg,.jpeg,.png',
+        multiple=False,
+        description='📷 Photo de blé',
+        layout=widgets.Layout(width='300px')
+    )
+
+    top_n_slider = widgets.IntSlider(
+        value=5, min=1, max=10, step=1,
+        description='Top-N :',
+        style={'description_width': '60px'},
+        layout=widgets.Layout(width='320px')
+    )
+
+    run_btn = widgets.Button(
+        description='🔍 Analyser & Recommander',
+        button_style='success',
+        layout=widgets.Layout(width='300px', height='40px')
+    )
+
+    out = widgets.Output()
+
+    # ── Callback principal ────────────────────────────────────────────
+    def _on_click(_):
+        with out:
+            clear_output(wait=True)
+
+            # ── Vérification upload ───────────────────────────────────
+            if not upload_btn.value:
+                print("⚠️  Veuillez d'abord charger une image.")
+                return
+
+            # ── Gestion compatibilité upload ──────────────────────────
+            upload_value = upload_btn.value
+
+            if isinstance(upload_value, dict):
+                img_bytes = list(upload_value.values())[0]['content']
+            else:
+                img_bytes = upload_value[0]['content']
+
+            # ── Image ──────────────────────────────────────────────────
+            pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+            # ── CNN prediction ────────────────────────────────────────
+            classe, confiance, probs = _predire_classe(img_bytes)
+            color = LABEL_COLOR.get(classe, '#2c3e50')
+
+            # ── Visualisation ─────────────────────────────────────────
+            fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+
+            axes[0].imshow(pil_img)
+            axes[0].axis('off')
+            axes[0].set_title(
+                f"Diagnostic CNN : {LABEL_FR[classe]}\nConfiance : {confiance*100:.1f}%",
+                fontsize=12,
+                fontweight='bold',
+                color=color
+            )
+
+            cls_sorted = sorted(probs.items(), key=lambda x: -x[1])
+            bar_labels = [LABEL_FR[c] for c, _ in cls_sorted]
+            bar_vals   = [p * 100 for _, p in cls_sorted]
+            bar_colors = [LABEL_COLOR.get(c, '#7f8c8d') for c, _ in cls_sorted]
+
+            bars = axes[1].bar(
+                bar_labels,
+                bar_vals,
+                color=bar_colors,
+                edgecolor='white',
+                linewidth=1.5
+            )
+
+            for bar, val in zip(bars, bar_vals):
+                axes[1].text(
+                    bar.get_x() + bar.get_width()/2,
+                    bar.get_height() + 0.8,
+                    f'{val:.1f}%',
+                    ha='center',
+                    fontweight='bold',
+                    fontsize=11
+                )
+
+            axes[1].set_ylim(0, 115)
+            axes[1].set_ylabel('Confiance (%)')
+            axes[1].set_title('Scores CNN par classe', fontweight='bold')
+            axes[1].grid(axis='y', alpha=0.3)
+
+            plt.tight_layout()
+            plt.savefig('cnn_diagnostic.png', dpi=130, bbox_inches='tight')
+            plt.show()
+
+            # ── Résumé ────────────────────────────────────────────────
+            print("━" * 60)
+            print("🌾 DIAGNOSTIC CNN")
+            print(f"   Classe détectée : {LABEL_FR[classe]}")
+            print(f"   Confiance       : {confiance*100:.1f}%")
+            print()
+
+            print("   Distribution des probabilités :")
+            for c, p in cls_sorted:
+                bar_txt = '█' * int(p * 30)
+                print(f"     {LABEL_FR[c]:32s}  {bar_txt}  {p*100:.1f}%")
+
+            print("━" * 60)
+
+            # ── Mapping traits ───────────────────────────────────────
+            traits = CNN_TO_TRAITS[classe]
+
+            print("\n📐 Profil de traits ciblé :")
+
+            labels_k = {
+                'drought'  : 'Tolérance sécheresse',
+                'salt'     : 'Tolérance sel',
+                'yield_val': 'Rendement',
+                'disease'  : 'Résistance maladie'
+            }
+
+            for k, v in traits.items():
+                print(f"   {labels_k.get(k,k):<28} : {v}")
+
+            print()
+
+            # ── Recommandation ───────────────────────────────────────
+            print("🔬 Recherche des meilleurs croisements...\n")
+
+            recommander_pour_variete(
+                drought      = traits['drought'],
+                salt         = traits['salt'],
+                yield_val    = traits['yield_val'],
+                disease      = traits['disease'],
+                top_n        = top_n_slider.value,
+                ensembl_cache= ensembl_cache  # séquences réelles
+            )
+
+    run_btn.on_click(_on_click)
+
+    # ── UI ───────────────────────────────────────────────────────────
+    display(widgets.VBox([
+        widgets.HTML(
+            "<h3>🌾 Diagnostic CNN + Recommandation de croisement</h3>"
+            "<p>Chargez une image → analyse CNN → sélection génétique.</p>"
+        ),
+        widgets.HBox([upload_btn, top_n_slider]),
+        run_btn,
+        out
+    ]))
+
+
+# ── Lancement ─────────────────────────────────────────────────────────
+lancer_interface_cnn()
+--- CELL 126 ---
+# ─────────────────────────────────────────────────────────────────────
+# 7.2 GENOTYPE OPTIMAL — La plante parfaite virtuelle
+# ─────────────────────────────────────────────────────────────────────
+print("\n7.2 Genotype Optimal — Plante parfaite virtuelle")
+print("="*60)
+
+# Pour chaque SNP, trouver la variete avec la valeur maximale sur les traits cibles
+poids_traits = {'drought': 0.4, 'salt': 0.3, 'yield': 0.2, 'disease': 0.1}
+df['score_global'] = sum(poids_traits[t] * df[t] for t in poids_traits)
+
+# Pour chaque SNP, prendre l'allele (0, 1 ou 2) de la variete avec le meilleur score global
+snp_cols_local = [c for c in df.columns if c.startswith('SNP')]
+
+genotype_optimal = {}
+for snp in snp_cols_local:
+    # Grouper par allele et prendre la moyenne du score global
+    best_allele = df.groupby(snp)['score_global'].mean().idxmax()
+    genotype_optimal[snp] = best_allele
+
+genotype_optimal['snp_activity'] = df.loc[df['score_global'].idxmax(), 'snp_activity']
+
+# ── CORRECTION : feature_cols_local sans les colonnes CNN ────────────
+feature_cols_local = snp_cols_local + ['snp_activity']  # 159 SNPs + snp_activity = 160
+x_optimal = np.array([genotype_optimal[f] for f in feature_cols_local]).reshape(1, -1)
+
+# Predire ses traits avec le meilleur modele
+if best_model_name in ['MLP (3 couches)', 'LSTM (2 couches)']:
+    x_sc = scaler.transform(x_optimal)
+    if best_model_name == 'MLP (3 couches)':
+        best_model_obj.eval()
+        with torch.no_grad():
+            traits_optimal = best_model_obj(torch.FloatTensor(x_sc)).numpy()[0]
+    else:
+        best_model_obj.eval()
+        with torch.no_grad():
+            traits_optimal = best_model_obj(torch.FloatTensor(x_sc).unsqueeze(-1)).numpy()[0]
+else:
+    traits_optimal = best_model_obj.predict(x_optimal)[0]
+
+print("Traits predits pour le GENOTYPE OPTIMAL :")
+print(f"  drought = {traits_optimal[0]:.4f}")
+print(f"  salt    = {traits_optimal[1]:.4f}")
+print(f"  yield   = {traits_optimal[2]:.4f}")
+print(f"  disease = {traits_optimal[3]:.4f}")
+score_opt = (0.4*traits_optimal[0] + 0.3*traits_optimal[1] +
+             0.2*traits_optimal[2] + 0.1*traits_optimal[3])
+print(f"  Score global = {score_opt:.4f}")
+
+# Comparer avec le meilleur croisement reel trouve en etape 5
+best_reel = crossings_df.sort_values('score_fixe', ascending=False).iloc[0]
+print(f"\nComparaison :")
+print(f"  Meilleur croisement reel  : score={best_reel['score_fixe']:.4f}")
+print(f"  Genotype optimal virtuel  : score={score_opt:.4f}")
+gain = (score_opt - best_reel['score_fixe']) / best_reel['score_fixe'] * 100
+print(f"  Gain theorique            : +{gain:.1f}%")

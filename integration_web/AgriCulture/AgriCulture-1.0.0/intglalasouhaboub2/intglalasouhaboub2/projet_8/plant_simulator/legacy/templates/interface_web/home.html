@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plant Growth Simulator - Django</title>
+  <link rel="stylesheet" href="/static/interface_web/style.css">
+</head>
+<body>
+  <main class="container">
+    <h1>Plant Growth Simulator</h1>
+    <p class="subtitle">DNA + Climate -> Neural Prediction -> 3D Growth Output</p>
+
+    <section class="card">
+      <form method="post">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Simulate Growth</button>
+      </form>
+    </section>
+
+    {% if success %}
+    <section class="card">
+      <h2>Simulation Result</h2>
+      <p><strong>DNA source:</strong> {{ dna_source }}</p>
+      <p><strong>Climate source:</strong> {{ climate_source }}</p>
+      <p><strong>Model:</strong> {{ model_message }}</p>
+      <p>
+        <strong>Final day:</strong>
+        Height {{ summary.final_height_cm }} cm,
+        Leaves {{ summary.final_leaf_count }},
+        Branches {{ summary.final_branch_count }},
+        Health {{ summary.final_health }}
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Predicted Trends</h2>
+      <img src="data:image/png;base64,{{ chart_base64 }}" alt="Prediction chart" class="chart">
+    </section>
+
+    {% if gif_url %}
+    <section class="card">
+      <h2>3D Growth Animation</h2>
+      <img src="{{ gif_url }}" alt="3D plant growth GIF" class="gif">
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <h2>Daily Preview (first 12 days)</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Day</th>
+              <th>Date</th>
+              <th>Height</th>
+              <th>Leaves</th>
+              <th>Leaf size</th>
+              <th>Stem</th>
+              <th>Branches</th>
+              <th>Health</th>
+              <th>Growth rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in preview_rows %}
+            <tr>
+              <td>{{ row.day_index }}</td>
+              <td>{{ row.date }}</td>
+              <td>{{ row.height_cm|floatformat:2 }}</td>
+              <td>{{ row.leaf_count }}</td>
+              <td>{{ row.leaf_size_cm2|floatformat:2 }}</td>
+              <td>{{ row.stem_thickness_mm|floatformat:2 }}</td>
+              <td>{{ row.branch_count }}</td>
+              <td>{{ row.health_index|floatformat:2 }}</td>
+              <td>{{ row.growth_rate_cm_day|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if success == False %}
+    <section class="card error">
+      <h2>Simulation Error</h2>
+      <p>{{ error }}</p>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

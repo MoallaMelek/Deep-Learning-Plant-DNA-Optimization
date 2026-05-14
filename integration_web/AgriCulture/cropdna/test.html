@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CropDNA — Test Module 8</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    textarea { width: 100%; }
+    iframe { width: 100%; height: 600px; border: 1px solid #ccc; }
+    button { margin: 10px 0; padding: 8px 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<h2>🧬 CropDNA — Test Module 8</h2>
+
+<textarea id="seq" rows="3">ATGCGTACGTAGCTAGCTAGCTAGATCGATCGATCG</textarea>
+
+<br>
+<button onclick="testPredict()">🔬 Predict OCR</button>
+<button onclick="testHeatmap()">🌡️ Heatmap</button>
+<button onclick="testMap3D()">🌍 Map 3D</button>
+
+<div id="json-result" style="background:#f5f5f5; padding:10px; margin:10px 0;"></div>
+
+<img id="heatmap-img" style="max-width:100%; display:none;" />
+
+<iframe id="result-frame" style="display:none;"></iframe>
+
+<script>
+  const BASE = 'http://127.0.0.1:8000'
+
+  async function getSeq() {
+    return document.getElementById('seq').value.trim()
+  }
+
+  async function testPredict() {
+    const seq = await getSeq()
+    const res = await fetch(`${BASE}/module8/predict`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sequence: seq})
+    })
+    const data = await res.json()
+    document.getElementById('json-result').innerHTML =
+      '<pre>' + JSON.stringify(data, null, 2) + '</pre>'
+    document.getElementById('heatmap-img').style.display = 'none'
+    document.getElementById('result-frame').style.display = 'none'
+  }
+
+  async function testHeatmap() {
+    const seq = await getSeq()
+    const res = await fetch(`${BASE}/module8/heatmap`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sequence: seq, include_heatmap: true})
+    })
+    const blob = await res.blob()
+    const url  = URL.createObjectURL(blob)
+    document.getElementById('heatmap-img').src = url
+    document.getElementById('heatmap-img').style.display = 'block'
+    document.getElementById('result-frame').style.display = 'none'
+    document.getElementById('json-result').innerHTML = ''
+  }
+
+  async function testMap3D() {
+    const seq = await getSeq()
+    const res = await fetch(`${BASE}/module8/map3d`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        sequence: seq,
+        chrom: "chr01",
+        position_mb: 0.0,
+        include_3d: true
+      })
+    })
+    const html = await res.text()
+    const iframe = document.getElementById('result-frame')
+    iframe.srcdoc = html
+    iframe.style.display = 'block'
+    document.getElementById('heatmap-img').style.display = 'none'
+    document.getElementById('json-result').innerHTML = ''
+  }
+</script>
+
+</body>
+</html>

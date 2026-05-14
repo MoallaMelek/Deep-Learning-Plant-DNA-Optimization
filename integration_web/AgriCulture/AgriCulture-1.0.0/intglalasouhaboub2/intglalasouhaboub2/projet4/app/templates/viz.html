@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Digital Twin Blé 🌾</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    :root{
+      --bg: #0a0e1a;
+      --panel: rgba(10, 20, 40, 0.82);
+      --border: rgba(100, 180, 255, 0.18);
+      --accent: #1D9E75;
+      --warn: #EF9F27;
+      --crit: #E24B4A;
+      --text: #e8f0fe;
+      --text-muted: #7b93c4;
+      --blur: blur(14px);
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      overflow: hidden;
+    }
+
+    #three-canvas{
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      display: block;
+      background: var(--bg);
+      outline: none;
+    }
+
+    #left-panel{
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100vh;
+      width: 320px;
+      z-index: 10;
+      background: var(--panel);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 24px 20px;
+      box-sizing: border-box;
+    }
+
+    #bottom-panel{
+      position: fixed;
+      bottom: 0;
+      left: 320px;
+      right: 0;
+      z-index: 10;
+      background: var(--panel);
+      backdrop-filter: var(--blur);
+      -webkit-backdrop-filter: var(--blur);
+      border-top: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      flex-wrap: wrap;
+      box-sizing: border-box;
+    }
+
+    #stage-badge{
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 11;
+      background: var(--accent);
+      color: #fff;
+      border-radius: 20px;
+      padding: 6px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      box-shadow: 0 0 20px rgba(29,158,117,0.4);
+      user-select: none;
+      pointer-events: none;
+    }
+
+    #toast{
+      position: fixed;
+      top: 60px;
+      right: 20px;
+      z-index: 12;
+      color: #fff;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+      max-width: 320px;
+      display: none;
+      transform: translateX(18px);
+      opacity: 0;
+      animation: toast-in 220ms ease forwards;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    #toast.toast-success{ background: rgba(29, 158, 117, 0.92); }
+    #toast.toast-warn{ background: rgba(239, 159, 39, 0.92); }
+    #toast.toast-crit{ background: rgba(226, 75, 74, 0.92); }
+
+    @keyframes toast-in{
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .title{
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .title h1{
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+    .title .variety{
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+    }
+
+    hr{
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 18px 0;
+    }
+
+    .metric-card{
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .metric-label{
+      color: var(--text-muted);
+      font-size: 11px;
+      letter-spacing: 1.0px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .metric-value{
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      margin: 0;
+    }
+    .metric-sub{
+      margin-top: 6px;
+      color: var(--text-muted);
+      font-size: 11px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .risk-item{
+      margin: 10px 0 14px 0;
+    }
+    .risk-row{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .risk-name{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+    }
+    .risk-val{
+      font-variant-numeric: tabular-nums;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 12px;
+    }
+    .risk-bar{
+      height: 6px;
+      border-radius: 3px;
+      background: #1a2035;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .risk-fill{
+      height: 100%;
+      width: 0%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--warn), var(--crit));
+      transition: width 0.5s ease;
+    }
+
+    .section-title{
+      color: var(--text-muted);
+      font-size: 12px;
+      letter-spacing: 0.7px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin: 2px 0 10px 0;
+    }
+
+    #recommendations-list{
+      margin: 0;
+      padding-left: 16px;
+      display: grid;
+      gap: 8px;
+    }
+    #recommendations-list li{
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .control{
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 220px;
+    }
+    .control label{
+      color: var(--text-muted);
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: 0.2px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .control .val{
+      color: var(--text);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type=range]{
+      -webkit-appearance: none;
+      appearance: none;
+      width: 240px;
+      max-width: 60vw;
+      height: 22px;
+      background: transparent;
+      margin: 0;
+      padding: 0;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-runnable-track{
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    input[type=range]::-webkit-slider-thumb{
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(29,158,117,0.55);
+      border: 1px solid rgba(255,255,255,0.25);
+      margin-top: -6px;
+      cursor: pointer;
+    }
+    input[type=range]::-moz-range-track{
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    input[type=range]::-moz-range-thumb{
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(29,158,117,0.55);
+      border: 1px solid rgba(255,255,255,0.25);
+      cursor: pointer;
+    }
+
+    select{
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 6px 10px;
+      outline: none;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .btn{
+      background: linear-gradient(135deg, var(--accent), #16755a);
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+      transition: filter 0.2s ease, opacity 0.2s ease, transform 0.08s ease;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn:hover{ filter: brightness(1.15); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.loading{
+      opacity: 0.60;
+      cursor: progress;
+      filter: none;
+    }
+
+    .hint{
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.3;
+      max-width: 520px;
+    }
+
+    .kbd{
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      font-size: 11px;
+      color: var(--text);
+      font-weight: 700;
+      margin: 0 4px;
+    }
+
+    @media (max-width: 980px){
+      #left-panel{ width: 300px; }
+      #bottom-panel{ left: 300px; }
+    }
+    @media (max-width: 860px){
+      #left-panel{
+        width: 100%;
+        height: 52vh;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      #bottom-panel{
+        left: 0;
+        bottom: 0;
+      }
+      body{ overflow: hidden; }
+      input[type=range]{ width: 55vw; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="three-canvas"></canvas>
+
+  <div id="stage-badge">—</div>
+  <div id="toast" class="toast toast-warn">—</div>
+
+  <aside id="left-panel">
+    <div class="title">
+      <h1>Digital Twin Blé 🌾</h1>
+      <div class="variety" id="variety-title">—</div>
+    </div>
+    <div class="hint" style="margin-top:10px">
+      Drag souris pour orbiter, molette pour zoom. Double-clique sur le canvas pour recentrer.
+    </div>
+
+    <hr />
+
+    <div class="metric-card">
+      <div class="metric-label">TWSO (kg/ha)</div>
+      <div class="metric-value" id="metric-twso">—</div>
+      <div class="metric-sub">
+        <div>P10: <span id="metric-twso-p10">—</span></div>
+        <div>P90: <span id="metric-twso-p90">—</span></div>
+      </div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Confiance</div>
+      <div class="metric-value" id="metric-conf">—</div>
+      <div class="metric-sub">
+        <div>Scénario: <span id="metric-scenario">—</span></div>
+        <div>Stade: <span id="metric-stage">—</span></div>
+      </div>
+    </div>
+
+    <div class="section-title">Risques de stress</div>
+
+    <div class="risk-item">
+      <div class="risk-row">
+        <div class="risk-name">Sécheresse</div>
+        <div class="risk-val" id="risk-drought-val">—</div>
+      </div>
+      <div class="risk-bar"><div class="risk-fill" id="risk-drought-bar"></div></div>
+    </div>
+
+    <div class="risk-item">
+      <div class="risk-row">
+        <div class="risk-name">Maladie</div>
+        <div class="risk-val" id="risk-disease-val">—</div>
+      </div>
+      <div class="risk-bar"><div class="risk-fill" id="risk-disease-bar"></div></div>
+    </div>
+
+    <div class="risk-item">
+      <div class="risk-row">
+        <div class="risk-name">Chaleur</div>
+        <div class="risk-val" id="risk-heat-val">—</div>
+      </div>
+      <div class="risk-bar"><div class="risk-fill" id="risk-heat-bar"></div></div>
+    </div>
+
+    <hr />
+
+    <div class="section-title">Recommandations</div>
+    <ol id="recommendations-list"></ol>
+  </aside>
+
+  <footer id="bottom-panel">
+    <div class="control">
+      <label>Rendement <span class="val" id="yield-val">—</span></label>
+      <input id="yield-slider" type="range" min="0" max="1" step="0.01" value="0.75" />
+    </div>
+
+    <div class="control">
+      <label>Tolérance sécheresse <span class="val" id="drought-val">—</span></label>
+      <input id="drought-slider" type="range" min="0" max="1" step="0.01" value="0.60" />
+    </div>
+
+    <div class="control">
+      <label>Résistance maladie <span class="val" id="disease-val">—</span></label>
+      <input id="disease-slider" type="range" min="0" max="1" step="0.01" value="0.70" />
+    </div>
+
+    <div class="control" style="min-width: 200px">
+      <label>Scénario <span class="val" id="scenario-val">—</span></label>
+      <select id="scenario-select">
+        <option value="normal">normal</option>
+        <option value="secheresse">sécheresse</option>
+        <option value="canicule">canicule</option>
+        <option value="maladie">maladie</option>
+        <option value="optimal">optimal</option>
+      </select>
+    </div>
+
+    <div class="control" style="min-width: 200px">
+      <label>Horizon <span class="val" id="horizon-val">—</span></label>
+      <select id="horizon-select">
+        <option value="1_semaine">1 semaine</option>
+        <option value="1_mois">1 mois</option>
+        <option value="3_mois">3 mois</option>
+        <option value="6_mois">6 mois</option>
+        <option value="1_an">1 an</option>
+      </select>
+    </div>
+
+    <button class="btn" id="api-btn" type="button">Recalculer depuis API</button>
+
+    <div class="hint">
+      Contrôles rapides: <span class="kbd">Shift</span> + molette (zoom fin),
+      <span class="kbd">R</span> (reset caméra).
+    </div>
+  </footer>
+
+  <script>
+    // ── Constantes ────────────────────────────────────────────────────────────
+    const ROWS = 6, COLS = 10;
+    const RAIN_COUNT = 600, DUST_COUNT = 400, SPORE_COUNT = 300;
+
+    const STAGES = [
+      { name: 'Semis',     maxDays: 15,  heightMult: 0.05 },
+      { name: 'Levée',     maxDays: 30,  heightMult: 0.15 },
+      { name: 'Tallage',   maxDays: 60,  heightMult: 0.40 },
+      { name: 'Montaison', maxDays: 90,  heightMult: 0.70 },
+      { name: 'Épiaison',  maxDays: 120, heightMult: 0.90 },
+      { name: 'Grain',     maxDays: 160, heightMult: 1.00 },
+      { name: 'Maturité',  maxDays: 365, heightMult: 1.00 },
+    ];
+
+    // ── State global ─────────────────────────────────────────────────────────
+    const INITIAL_DATA = {{ data | tojson }};
+
+    const state = {
+      yieldScore:   Number(INITIAL_DATA.yieldScore),
+      droughtScore: Number(INITIAL_DATA.droughtScore),
+      diseaseScore: Number(INITIAL_DATA.diseaseScore),
+      scenario:     String(INITIAL_DATA.scenario),
+      horizonDays:  Number(INITIAL_DATA.horizonDays),
+      twso:         Number(INITIAL_DATA.twso),
+      twsoP10:      Number(INITIAL_DATA.twsoP10),
+      twsoP90:      Number(INITIAL_DATA.twsoP90),
+      confidence:   Number(INITIAL_DATA.confidence),
+      stressRisks:  INITIAL_DATA.stressRisks || { drought: 0, disease: 0, heat: 0 },
+      recommendations: Array.isArray(INITIAL_DATA.recommendations) ? INITIAL_DATA.recommendations : [],
+      varietyName:  String(INITIAL_DATA.varietyName || '—'),
+      normsBaseline: Number(INITIAL_DATA.normsBaseline || 4500.0),
+      time: 0,
+      growthFactor: 0,
+      isLoading: false,
+      camera: {
+        theta: 0,
+        phi: 0.30,
+        distance: 18,
+        autoTheta: 0,
+        isDragging: false,
+        lastX: 0,
+        lastY: 0,
+        targetY: 2.5,
+        targetX: 0,
+        targetZ: 0
+      }
+    };
+
+    // ── Utils ────────────────────────────────────────────────────────────────
+    function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+    function fmtPct(x){ return Math.round(Number(x) * 100) + '%'; }
+    function fmt01(x){ return Number(x).toFixed(2); }
+    function fmtInt(x){ return Math.round(Number(x)).toString(); }
+
+    function getGrowthStage(horizonDays) {
+      for (const s of STAGES) {
+        if (horizonDays <= s.maxDays) return s;
+      }
+      return STAGES[STAGES.length - 1];
+    }
+
+    function horizonToKey(days) {
+      const map = {7:'1_semaine', 30:'1_mois', 90:'3_mois', 180:'6_mois', 365:'1_an'};
+      return map[days] || '6_mois';
+    }
+
+    function keyToHorizonDays(key){
+      const map = {'1_semaine':7, '1_mois':30, '3_mois':90, '6_mois':180, '1_an':365};
+      return map[key] || 180;
+    }
+
+    function seededRng(seed){
+      let s = seed >>> 0;
+      return function(){
+        s = (s * 1664525 + 1013904223) >>> 0;
+        return (s & 0x00ffffff) / 0x01000000;
+      };
+    }
+
+    function scenarioLabel(sc){
+      const map = { normal:'normal', secheresse:'sécheresse', canicule:'canicule', maladie:'maladie', optimal:'optimal' };
+      return map[sc] || sc;
+    }
+
+    // ── Calcul local (notebook-like) ─────────────────────────────────────────
+    function computePrediction(yieldScore, droughtScore, diseaseScore, scenario, horizonDays) {
+      const sfMap = { normal:1.0, secheresse:0.65, canicule:0.75, maladie:0.70, optimal:1.20 };
+      const sf = sfMap[scenario] || 1.0;
+      let hf;
+      if (horizonDays <= 30)       hf = 0.30;
+      else if (horizonDays <= 180) hf = 0.30 + 0.70 * (horizonDays - 30) / 150;
+      else                          hf = 1.00;
+      const baseTWSO = 50 + yieldScore * 160;
+      const cfet     = 0.5 + droughtScore * 0.5;
+      const twso     = baseTWSO * 6.5 * cfet * sf * hf;
+      const noise    = twso * 0.08;
+      const conf     = Math.max(0, 1.0 - 0.15 / Math.max(yieldScore, 0.1));
+      const rDrought = Math.min(1, (1-droughtScore) * (scenario==='secheresse' ? 2.5:1) * (1+horizonDays/365*0.5));
+      const rDisease = Math.min(1, (1-diseaseScore) * (scenario==='maladie' ? 2.5:1) * (1+horizonDays/365*0.5));
+      const rHeat    = scenario === 'canicule' ? 0.8 : 0.2;
+      const growthFactor = Math.min(1.0, horizonDays / 180.0);
+      return {
+        twso: Number(twso),
+        twsoP10: Number(twso - noise*1.28),
+        twsoP90: Number(twso + noise*1.28),
+        confidence: Number(conf),
+        rDrought: Number(rDrought),
+        rDisease: Number(rDisease),
+        rHeat: Number(rHeat),
+        growthFactor: Number(growthFactor)
+      };
+    }
+
+    // ── Toast ────────────────────────────────────────────────────────────────
+    let toastTimer = null;
+    function showToast(msg, type='warn') {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.className = 'toast toast-' + type;
+      toast.style.display = 'block';
+      toast.style.opacity = '1';
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.style.display = 'none';
+      }, 4000);
+    }
+
+    // ── DOM update ───────────────────────────────────────────────────────────
+    function updateUI(localPred){
+      const stage = getGrowthStage(state.horizonDays);
+
+      const twsoEl = document.getElementById('metric-twso');
+      const p10El  = document.getElementById('metric-twso-p10');
+      const p90El  = document.getElementById('metric-twso-p90');
+      const confEl = document.getElementById('metric-conf');
+      const scEl   = document.getElementById('metric-scenario');
+      const stEl   = document.getElementById('metric-stage');
+
+      const yieldVal = document.getElementById('yield-val');
+      const droughtVal = document.getElementById('drought-val');
+      const diseaseVal = document.getElementById('disease-val');
+      const scenarioVal = document.getElementById('scenario-val');
+      const horizonVal = document.getElementById('horizon-val');
+
+      document.getElementById('variety-title').textContent = state.varietyName;
+      document.getElementById('stage-badge').textContent = stage.name;
+
+      const twsoDisplay = Number.isFinite(state.twso) ? state.twso : localPred.twso;
+      const p10Display  = Number.isFinite(state.twsoP10) ? state.twsoP10 : localPred.twsoP10;
+      const p90Display  = Number.isFinite(state.twsoP90) ? state.twsoP90 : localPred.twsoP90;
+      const confDisplay = Number.isFinite(state.confidence) ? state.confidence : localPred.confidence;
+
+      twsoEl.textContent = fmtInt(twsoDisplay);
+      p10El.textContent = fmtInt(p10Display);
+      p90El.textContent = fmtInt(p90Display);
+      confEl.textContent = Math.round(confDisplay * 100) + '%';
+      scEl.textContent = scenarioLabel(state.scenario);
+      stEl.textContent = stage.name;
+
+      // TWSO color vs baseline
+      const baseline = Math.max(1, Number(state.normsBaseline || 4500));
+      const ratio = Number(twsoDisplay) / baseline;
+      if (ratio >= 0.85) twsoEl.style.color = 'var(--accent)';
+      else if (ratio >= 0.70) twsoEl.style.color = 'var(--warn)';
+      else twsoEl.style.color = 'var(--crit)';
+
+      yieldVal.textContent = fmt01(state.yieldScore);
+      droughtVal.textContent = fmt01(state.droughtScore);
+      diseaseVal.textContent = fmt01(state.diseaseScore);
+      scenarioVal.textContent = scenarioLabel(state.scenario);
+
+      const hk = horizonToKey(state.horizonDays);
+      const hLabels = { '1_semaine':'1 semaine', '1_mois':'1 mois', '3_mois':'3 mois', '6_mois':'6 mois', '1_an':'1 an' };
+      horizonVal.textContent = hLabels[hk] || hk;
+
+      const risks = state.stressRisks || { drought: localPred.rDrought, disease: localPred.rDisease, heat: localPred.rHeat };
+      const rd = clamp(Number(risks.drought), 0, 1);
+      const rdi = clamp(Number(risks.disease), 0, 1);
+      const rh = clamp(Number(risks.heat), 0, 1);
+
+      document.getElementById('risk-drought-val').textContent = fmtPct(rd);
+      document.getElementById('risk-disease-val').textContent = fmtPct(rdi);
+      document.getElementById('risk-heat-val').textContent = fmtPct(rh);
+      document.getElementById('risk-drought-bar').style.width = (rd*100).toFixed(0) + '%';
+      document.getElementById('risk-disease-bar').style.width = (rdi*100).toFixed(0) + '%';
+      document.getElementById('risk-heat-bar').style.width = (rh*100).toFixed(0) + '%';
+
+      const list = document.getElementById('recommendations-list');
+      const recs = Array.isArray(state.recommendations) ? state.recommendations : [];
+      list.innerHTML = recs.map(r => '<li>' + escapeHtml(String(r)) + '</li>').join('');
+
+      // Toast for stress (proxy EvenementAgricole)
+      const severe = Math.max(rd, rdi, rh);
+      if (severe >= 0.85) showToast('Alerte critique: stress élevé détecté (surveillance immédiate).', 'crit');
+      else if (severe >= 0.70) showToast('Alerte: stress modéré/élevé (ajuster l’itinéraire technique).', 'warn');
+    }
+
+    function escapeHtml(s){
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // ── Setup Three.js ───────────────────────────────────────────────────────
+    const canvas = document.getElementById('three-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0e1a);
+    scene.fog = new THREE.Fog(0x0a0e1a, 20, 60);
+
+    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+    camera.position.set(0, 8, 18);
+
+    // Lights
+    const ambient = new THREE.AmbientLight(0x334466, 0.65);
+    scene.add(ambient);
+
+    const sun = new THREE.DirectionalLight(0xfff5cc, 1.4);
+    sun.position.set(14, 14, 10);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 60;
+    sun.shadow.camera.left = -18;
+    sun.shadow.camera.right = 18;
+    sun.shadow.camera.top = 18;
+    sun.shadow.camera.bottom = -18;
+    scene.add(sun);
+
+    const fillLight = new THREE.DirectionalLight(0x4488bb, 0.3);
+    fillLight.position.set(-10, 5, -10);
+    scene.add(fillLight);
+
+    // Ground
+    const groundGeom = new THREE.PlaneGeometry(30, 20, 8, 8);
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0x2d4a1e });
+    const ground = new THREE.Mesh(groundGeom, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Grid
+    scene.add(new THREE.GridHelper(30, 20, 0x1a2540, 0x1a2540));
+
+    // Plants
+    const plantGroup = new THREE.Group();
+    scene.add(plantGroup);
+    const plants = [];
+
+    function buildPlant(height, scenario, yieldScore, droughtScore, diseaseScore, showEar, rng){
+      const group = new THREE.Group();
+
+      let stemColor;
+      if (scenario === 'maladie') stemColor = 0x4a6b2a;
+      else if (scenario === 'secheresse') stemColor = 0x8b7355;
+      else if (scenario === 'canicule') stemColor = 0x9b8040;
+      else stemColor = 0x5a8c2a;
+
+      const stemGeom = new THREE.CylinderGeometry(0.03, 0.05, height, 5);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemColor });
+      const stem = new THREE.Mesh(stemGeom, stemMat);
+      stem.position.y = height / 2;
+      stem.castShadow = true;
+      group.add(stem);
+
+      const leafColor = scenario === 'maladie' ? 0x3a5a1a : (scenario === 'secheresse' ? 0x7a6a30 : 0x4a7a1a);
+      const leafCount = 2 + (rng() > 0.65 ? 1 : 0);
+      for (let i = 0; i < leafCount; i++){
+        const leafGeom = new THREE.PlaneGeometry(0.08, height * (0.30 + rng() * 0.18));
+        const leafMat = new THREE.MeshLambertMaterial({ color: leafColor, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+        const leaf = new THREE.Mesh(leafGeom, leafMat);
+        leaf.position.y = height * (0.25 + i * 0.18 + rng() * 0.05);
+        leaf.rotation.z = (i % 2 === 0 ? 1 : -1) * (0.45 + rng() * 0.25);
+        leaf.rotation.y = rng() * Math.PI;
+        group.add(leaf);
+      }
+
+      if (showEar){
+        const earGeom = new THREE.SphereGeometry(0.08, 6, 4);
+        earGeom.scale(0.6, 1.8, 0.6);
+        const earColor = scenario === 'maladie' ? 0x8b7355 : (yieldScore > 0.6 ? 0xc8a840 : 0xa89060);
+        const earMat = new THREE.MeshLambertMaterial({ color: earColor });
+        const ear = new THREE.Mesh(earGeom, earMat);
+        ear.position.y = height + 0.12;
+        ear.castShadow = true;
+        group.add(ear);
+      }
+
+      // subtle branching (small side stem)
+      if (rng() > 0.58 && height > 0.4){
+        const bH = height * (0.35 + rng() * 0.25);
+        const bGeom = new THREE.CylinderGeometry(0.02, 0.03, bH, 5);
+        const bMat = new THREE.MeshLambertMaterial({ color: stemColor });
+        const br = new THREE.Mesh(bGeom, bMat);
+        br.position.y = height * (0.35 + rng() * 0.25);
+        br.position.x = (rng() - 0.5) * 0.06;
+        br.rotation.z = (rng() > 0.5 ? 1 : -1) * (0.55 + rng() * 0.35);
+        br.castShadow = true;
+        group.add(br);
+      }
+
+      return group;
+    }
+
+    function rebuildPlants(scenario, growthFactor, yieldScore, droughtScore, diseaseScore, horizonDays){
+      while (plantGroup.children.length > 0) plantGroup.remove(plantGroup.children[0]);
+      plants.length = 0;
+
+      const stage = getGrowthStage(horizonDays);
+      const baseHeight = 0.05 + growthFactor * stage.heightMult * (1.5 + yieldScore * 1.0);
+      const showEar = horizonDays > 120;
+
+      const seed = Math.abs(Math.floor((yieldScore*1000) + (droughtScore*2000) + (diseaseScore*3000) + horizonDays*17 + (scenario.charCodeAt(0) || 0)*101));
+      const rng = seededRng(seed);
+
+      for (let r = 0; r < ROWS; r++){
+        for (let c = 0; c < COLS; c++){
+          const survivalRate = scenario === 'secheresse' ? (0.75 + droughtScore * 0.2)
+                             : scenario === 'maladie' ? (0.70 + diseaseScore * 0.2)
+                             : 0.97;
+          if (rng() > survivalRate) continue;
+
+          const x = (c - COLS/2 + 0.5) * 2.8 + (rng() - 0.5) * 0.3;
+          const z = (r - ROWS/2 + 0.5) * 2.4 + (rng() - 0.5) * 0.3;
+          const h = baseHeight * (0.85 + rng() * 0.3);
+          const plant = buildPlant(h, scenario, yieldScore, droughtScore, diseaseScore, showEar, rng);
+          plant.position.set(x, 0, z);
+          plant.rotation.y = rng() * Math.PI * 2;
+          plants.push({ mesh: plant });
+          plantGroup.add(plant);
+        }
+      }
+    }
+
+    // ── Particles ────────────────────────────────────────────────────────────
+    function makePoints(count, colorHex, size, opacity){
+      const geom = new THREE.BufferGeometry();
+      const arr = new Float32Array(count * 3);
+      geom.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+      const mat = new THREE.PointsMaterial({
+        color: colorHex,
+        size,
+        transparent: true,
+        opacity,
+        depthWrite: false
+      });
+      const pts = new THREE.Points(geom, mat);
+      scene.add(pts);
+      return pts;
+    }
+
+    const rain = makePoints(RAIN_COUNT, 0x4488ff, 0.06, 0.60);
+    const dust = makePoints(DUST_COUNT, 0xc8a060, 0.08, 0.35);
+    const spores = makePoints(SPORE_COUNT, 0xaa55ff, 0.07, 0.40);
+
+    function initRain(){
+      const pos = rain.geometry.attributes.position.array;
+      for (let i=0; i<RAIN_COUNT; i++){
+        pos[i*3+0] = (Math.random() - 0.5) * 30;
+        pos[i*3+1] = 2 + Math.random() * 18;
+        pos[i*3+2] = (Math.random() - 0.5) * 20;
+      }
+      rain.geometry.attributes.position.needsUpdate = true;
+    }
+    function initDust(){
+      const pos = dust.geometry.attributes.position.array;
+      for (let i=0; i<DUST_COUNT; i++){
+        pos[i*3+0] = (Math.random() - 0.5) * 30;
+        pos[i*3+1] = 0.2 + Math.random() * 5;
+        pos[i*3+2] = (Math.random() - 0.5) * 20;
+      }
+      dust.geometry.attributes.position.needsUpdate = true;
+    }
+    function initSpores(){
+      const pos = spores.geometry.attributes.position.array;
+      for (let i=0; i<SPORE_COUNT; i++){
+        pos[i*3+0] = (Math.random() - 0.5) * 20;
+        pos[i*3+1] = 0.6 + Math.random() * 6;
+        pos[i*3+2] = (Math.random() - 0.5) * 16;
+      }
+      spores.geometry.attributes.position.needsUpdate = true;
+    }
+
+    initRain(); initDust(); initSpores();
+
+    // ── Clouds ───────────────────────────────────────────────────────────────
+    const clouds = [];
+    function buildCloud(){
+      const g = new THREE.Group();
+      const mat = new THREE.MeshLambertMaterial({ color: 0xaabbcc, transparent: true, opacity: 0.85 });
+      const blobCount = 4;
+      for (let i=0; i<blobCount; i++){
+        const r = 0.8 + Math.random() * 0.8;
+        const geom = new THREE.SphereGeometry(r, 10, 8);
+        const m = new THREE.Mesh(geom, mat);
+        m.position.set((Math.random()-0.5)*1.8, (Math.random()-0.5)*0.4, (Math.random()-0.5)*1.2);
+        g.add(m);
+      }
+      return g;
+    }
+    for (let i=0; i<5; i++){
+      const c = buildCloud();
+      c.position.set(-16 + i*8, 12 + Math.random()*3, -6 + Math.random()*6);
+      c.visible = true;
+      scene.add(c);
+      clouds.push(c);
+    }
+
+    // ── Environment update ───────────────────────────────────────────────────
+    function updateSoil(scenario){
+      const colors = {
+        normal: 0x2d4a1e,
+        secheresse: 0x6b4c1a,
+        canicule: 0x5c3d0a,
+        maladie: 0x1a2d1a,
+        optimal: 0x1a3d0f
+      };
+      groundMat.color.setHex(colors[scenario] || colors.normal);
+    }
+
+    function updateEnvironment(scenario){
+      if (scenario === 'optimal'){
+        rain.visible = true; dust.visible = false; spores.visible = false;
+      } else if (scenario === 'secheresse' || scenario === 'canicule'){
+        rain.visible = false; dust.visible = true; spores.visible = false;
+      } else if (scenario === 'maladie'){
+        rain.visible = false; dust.visible = false; spores.visible = true;
+      } else {
+        rain.visible = false; dust.visible = false; spores.visible = false;
+      }
+
+      const cloudVisible = (scenario === 'normal' || scenario === 'optimal');
+      for (const c of clouds) c.visible = cloudVisible;
+
+      const fogColors = {
+        normal:   0x0a0e1a,
+        secheresse: 0x141015,
+        canicule:  0x1a120a,
+        maladie:   0x081018,
+        optimal:   0x071224
+      };
+      scene.fog.color.setHex(fogColors[scenario] || fogColors.normal);
+      scene.background = new THREE.Color(fogColors[scenario] || fogColors.normal);
+
+      if (scenario === 'canicule'){
+        sun.color.setHex(0xffd2a3);
+        sun.intensity = 1.55;
+      } else if (scenario === 'optimal'){
+        sun.color.setHex(0xfff7da);
+        sun.intensity = 1.45;
+      } else if (scenario === 'maladie'){
+        sun.color.setHex(0xdde8ff);
+        sun.intensity = 1.25;
+      } else {
+        sun.color.setHex(0xfff5cc);
+        sun.intensity = 1.35;
+      }
+      updateSoil(scenario);
+    }
+
+    // ── Scene update trigger ────────────────────────────────────────────────
+    function triggerSceneUpdate(){
+      const local = computePrediction(state.yieldScore, state.droughtScore, state.diseaseScore, state.scenario, state.horizonDays);
+      state.growthFactor = local.growthFactor;
+
+      // Keep UI consistent: show local estimate immediately, but preserve API recommendation list
+      updateUI(local);
+      updateEnvironment(state.scenario);
+      rebuildPlants(state.scenario, state.growthFactor, state.yieldScore, state.droughtScore, state.diseaseScore, state.horizonDays);
+    }
+
+    // ── API fetch ────────────────────────────────────────────────────────────
+    async function fetchFromAPI(){
+      if (state.isLoading) return;
+      state.isLoading = true;
+      const btn = document.getElementById('api-btn');
+      btn.classList.add('loading');
+      const prevText = btn.textContent;
+      btn.textContent = 'Calcul en cours...';
+
+      const params = new URLSearchParams({
+        yield_score:   String(state.yieldScore),
+        drought_score: String(state.droughtScore),
+        disease_score: String(state.diseaseScore),
+        scenario:      String(state.scenario),
+        horizon:       horizonToKey(state.horizonDays)
+      });
+
+      // Preserve variety_name if present in URL
+      const cur = new URLSearchParams(window.location.search);
+      if (cur.get('variety_name')) params.set('variety_name', cur.get('variety_name'));
+
+      try{
+        const resp = await fetch('/viz/data?' + params.toString(), { cache: 'no-store' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+
+        state.twso = Number(data.twso);
+        state.twsoP10 = Number(data.twsoP10);
+        state.twsoP90 = Number(data.twsoP90);
+        state.confidence = Number(data.confidence);
+        state.stressRisks = data.stressRisks || state.stressRisks;
+        state.recommendations = Array.isArray(data.recommendations) ? data.recommendations : state.recommendations;
+        state.varietyName = String(data.varietyName || state.varietyName);
+        state.normsBaseline = Number(data.normsBaseline || state.normsBaseline);
+
+        showToast('✅ Données recalculées depuis l\'API', 'success');
+        triggerSceneUpdate();
+      } catch (err){
+        showToast('⚠️ API indisponible — calcul local', 'warn');
+        triggerSceneUpdate();
+      } finally {
+        state.isLoading = false;
+        btn.classList.remove('loading');
+        btn.textContent = prevText;
+      }
+    }
+
+    // ── Manual orbit camera (no OrbitControls) ───────────────────────────────
+    function updateCamera(t){
+      const c = state.camera;
+      const autoSpeed = 0.002;
+      if (!c.isDragging) c.autoTheta += autoSpeed;
+
+      const theta = c.theta + c.autoTheta;
+      const phi = clamp(c.phi, 0.10, 1.20);
+      const r = clamp(c.distance, 8, 35);
+
+      camera.position.set(
+        c.targetX + r * Math.sin(theta) * Math.cos(phi),
+        c.targetY + r * Math.sin(phi) + 0.6,
+        c.targetZ + r * Math.cos(theta) * Math.cos(phi)
+      );
+      camera.lookAt(c.targetX, c.targetY, c.targetZ);
+
+      // subtle bob
+      camera.position.y += Math.sin(t * 0.10) * 0.10;
+    }
+
+    function resetCamera(){
+      state.camera.theta = 0;
+      state.camera.phi = 0.30;
+      state.camera.distance = 18;
+      state.camera.autoTheta = 0;
+      showToast('Caméra réinitialisée', 'success');
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      state.camera.isDragging = true;
+      state.camera.lastX = e.clientX;
+      state.camera.lastY = e.clientY;
+      canvas.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mouseup', () => {
+      state.camera.isDragging = false;
+      canvas.style.cursor = 'grab';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!state.camera.isDragging) return;
+      const dx = e.clientX - state.camera.lastX;
+      const dy = e.clientY - state.camera.lastY;
+      state.camera.lastX = e.clientX;
+      state.camera.lastY = e.clientY;
+      state.camera.theta -= dx * 0.008;
+      state.camera.phi = clamp(state.camera.phi + dy * 0.006, 0.10, 1.20);
+    });
+
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const fine = e.shiftKey ? 0.002 : 0.01;
+      state.camera.distance = clamp(state.camera.distance + e.deltaY * fine, 8, 35);
+    }, { passive: false });
+
+    canvas.addEventListener('dblclick', () => {
+      state.camera.targetX = 0;
+      state.camera.targetY = 2.5;
+      state.camera.targetZ = 0;
+      showToast('Centrage sur la parcelle', 'success');
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'r' || e.key === 'R') resetCamera();
+    });
+
+    canvas.style.cursor = 'grab';
+
+    // ── Controls ─────────────────────────────────────────────────────────────
+    const yieldSlider = document.getElementById('yield-slider');
+    const droughtSlider = document.getElementById('drought-slider');
+    const diseaseSlider = document.getElementById('disease-slider');
+    const scenarioSelect = document.getElementById('scenario-select');
+    const horizonSelect = document.getElementById('horizon-select');
+    const apiBtn = document.getElementById('api-btn');
+
+    function applyControlsFromState(){
+      yieldSlider.value = String(state.yieldScore);
+      droughtSlider.value = String(state.droughtScore);
+      diseaseSlider.value = String(state.diseaseScore);
+      scenarioSelect.value = String(state.scenario);
+      horizonSelect.value = horizonToKey(state.horizonDays);
+    }
+
+    yieldSlider.addEventListener('input', () => {
+      state.yieldScore = clamp(Number(yieldSlider.value), 0, 1);
+      triggerSceneUpdate();
+    });
+    droughtSlider.addEventListener('input', () => {
+      state.droughtScore = clamp(Number(droughtSlider.value), 0, 1);
+      triggerSceneUpdate();
+    });
+    diseaseSlider.addEventListener('input', () => {
+      state.diseaseScore = clamp(Number(diseaseSlider.value), 0, 1);
+      triggerSceneUpdate();
+    });
+    scenarioSelect.addEventListener('change', () => {
+      state.scenario = String(scenarioSelect.value);
+      // reset API-only metrics to allow local recalc unless user hits API
+      state.stressRisks = { drought: 0, disease: 0, heat: 0 };
+      triggerSceneUpdate();
+    });
+    horizonSelect.addEventListener('change', () => {
+      state.horizonDays = keyToHorizonDays(String(horizonSelect.value));
+      triggerSceneUpdate();
+    });
+    apiBtn.addEventListener('click', fetchFromAPI);
+
+    // ── Resize handler ───────────────────────────────────────────────────────
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    });
+
+    // ── Animation loop ───────────────────────────────────────────────────────
+    const clock = new THREE.Clock();
+    function animate(){
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+      state.time = t;
+
+      // Camera
+      updateCamera(t);
+
+      // Ambient pulse
+      ambient.intensity = 0.65 + 0.08 * Math.sin(t * 0.5);
+
+      // Sun day cycle
+      const dayAngle = (t * 0.05) % (Math.PI * 2);
+      sun.position.set(14 * Math.cos(dayAngle), 14 * Math.abs(Math.sin(dayAngle)) + 4, 10);
+      sun.intensity = clamp(sun.intensity, 1.0, 1.7) * (1.0 + 0.6 * Math.abs(Math.sin(dayAngle)));
+
+      // Rain particles
+      if (rain.visible){
+        const pos = rain.geometry.attributes.position.array;
+        for (let i=0; i<RAIN_COUNT; i++){
+          pos[i*3+1] -= 0.22;
+          pos[i*3+0] += Math.sin(t * 0.8 + i) * 0.002;
+          if (pos[i*3+1] < -1){
+            pos[i*3+0] = (Math.random() - 0.5) * 30;
+            pos[i*3+1] = 18 + Math.random() * 6;
+            pos[i*3+2] = (Math.random() - 0.5) * 20;
+          }
+        }
+        rain.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // Dust particles
+      if (dust.visible){
+        const pos = dust.geometry.attributes.position.array;
+        for (let i=0; i<DUST_COUNT; i++){
+          pos[i*3+1] += 0.010 + Math.sin(t*0.7 + i*0.2) * 0.003;
+          pos[i*3+0] += Math.sin(t*0.5 + i*0.1) * 0.012;
+          pos[i*3+2] += Math.cos(t*0.45 + i*0.08) * 0.007;
+          if (pos[i*3+1] > 7){
+            pos[i*3+0] = (Math.random() - 0.5) * 30;
+            pos[i*3+1] = 0.2;
+            pos[i*3+2] = (Math.random() - 0.5) * 20;
+          }
+        }
+        dust.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // Spore particles
+      if (spores.visible){
+        const pos = spores.geometry.attributes.position.array;
+        for (let i=0; i<SPORE_COUNT; i++){
+          const base = i*3;
+          pos[base+0] += Math.sin(t*0.35 + i*0.17) * 0.006;
+          pos[base+1] += Math.cos(t*0.30 + i*0.13) * 0.004;
+          pos[base+2] += Math.sin(t*0.25 + i*0.11) * 0.006;
+          // keep within bounds
+          if (pos[base+1] < 0.3) pos[base+1] = 0.3;
+          if (pos[base+1] > 8.0) pos[base+1] = 8.0;
+          pos[base+0] = clamp(pos[base+0], -12, 12);
+          pos[base+2] = clamp(pos[base+2], -10, 10);
+        }
+        spores.geometry.attributes.position.needsUpdate = true;
+      }
+
+      // Clouds drift
+      for (let i=0; i<clouds.length; i++){
+        const c = clouds[i];
+        if (!c.visible) continue;
+        c.position.x += 0.008 * (i%2===0 ? 1 : -1);
+        if (c.position.x > 18) c.position.x = -18;
+        if (c.position.x < -18) c.position.x = 18;
+        c.position.z += Math.sin(t*0.12 + i) * 0.002;
+      }
+
+      // Plant sway
+      const swayAmp = state.scenario === 'secheresse' ? 0.06 : 0.03;
+      for (let i=0; i<plants.length; i++){
+        const p = plants[i].mesh;
+        p.rotation.z = Math.sin(t * 1.2 + i * 0.5) * swayAmp;
+        p.rotation.x = Math.cos(t * 0.8 + i * 0.3) * swayAmp * 0.5;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // ── Init ────────────────────────────────────────────────────────────────
+    function init(){
+      // Apply initial control values
+      applyControlsFromState();
+
+      // Make sure sliders match injected data
+      yieldSlider.value = String(state.yieldScore);
+      droughtSlider.value = String(state.droughtScore);
+      diseaseSlider.value = String(state.diseaseScore);
+      scenarioSelect.value = String(state.scenario);
+      horizonSelect.value = horizonToKey(state.horizonDays);
+
+      triggerSceneUpdate();
+      animate();
+
+      // Fetch live data from API using current query params (non-blocking)
+      fetch('/viz/data' + window.location.search, { cache: 'no-store' })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)))
+        .then(data => {
+          state.yieldScore = clamp(Number(data.yieldScore ?? state.yieldScore), 0, 1);
+          state.droughtScore = clamp(Number(data.droughtScore ?? state.droughtScore), 0, 1);
+          state.diseaseScore = clamp(Number(data.diseaseScore ?? state.diseaseScore), 0, 1);
+          state.scenario = String(data.scenario ?? state.scenario);
+          state.horizonDays = Number(data.horizonDays ?? state.horizonDays);
+          state.twso = Number(data.twso ?? state.twso);
+          state.twsoP10 = Number(data.twsoP10 ?? state.twsoP10);
+          state.twsoP90 = Number(data.twsoP90 ?? state.twsoP90);
+          state.confidence = Number(data.confidence ?? state.confidence);
+          state.stressRisks = data.stressRisks || state.stressRisks;
+          state.recommendations = Array.isArray(data.recommendations) ? data.recommendations : state.recommendations;
+          state.varietyName = String(data.varietyName ?? state.varietyName);
+          state.normsBaseline = Number(data.normsBaseline ?? state.normsBaseline);
+
+          applyControlsFromState();
+          showToast('Données initiales chargées depuis l\'API', 'success');
+          triggerSceneUpdate();
+        })
+        .catch(() => {
+          showToast('Mode hors-ligne: données initiales via template', 'warn');
+          triggerSceneUpdate();
+        });
+
+      // Keep stage badge in sync
+      setInterval(() => {
+        document.getElementById('stage-badge').textContent = getGrowthStage(state.horizonDays).name;
+      }, 500);
+    }
+
+    init();
+  </script>
+</body>
+</html>
+

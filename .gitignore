@@ -1,0 +1,140 @@
+# ============================================================================
+# Flutter / Dart
+# ============================================================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+**/doc/api/
+**/ios/Flutter/.last_build_id
+app.*.symbols
+app.*.map.json
+
+# Android / Gradle generated state
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/app/build/
+*.apk
+*.aab
+
+# Desktop generated state
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+macos/Flutter/ephemeral/
+
+# ============================================================================
+# Python / FastAPI / ML
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.coverage
+htmlcov/
+
+# Secrets and local runtime state
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+*.bak
+tmp_*
+report_*.html
+*.out
+*.err
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+mobile_auth.db
+ira_plants.db
+
+# ML model/data artifacts kept outside Git
+artifacts/
+models/
+outputs/
+media/
+*.h5
+*.keras
+*.pkl
+*.pickle
+*.joblib
+*.pth
+*.pt
+*.onnx
+*.bin
+*.safetensors
+*.index
+*.faiss
+*.parquet
+*.csv
+*.tsv
+*.npy
+*.npz
+*.ipynb
+*.pdf
+*.wav
+*.mp3
+*.m4a
+*.aac
+*.flac
+*.fna
+*.fasta
+*.fastq
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# ============================================================================
+# Node / React / Vite
+# ============================================================================
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ============================================================================
+# IDE / OS / local files
+# ============================================================================
+.idea/
+.history/
+.vscode/*
+!.vscode/extensions.json
+*.iml
+*.ipr
+*.iws
+.DS_Store
+Thumbs.db
+desktop.ini
+.tmp_appdata/
+migrate_working_dir/
+
+# Keep portfolio assets tracked
+!assets/
+!assets/screenshots/
+!assets/screenshots/**
+!assets/images/
+!assets/images/.gitkeep
+!assets/icons/
+!assets/icons/.gitkeep

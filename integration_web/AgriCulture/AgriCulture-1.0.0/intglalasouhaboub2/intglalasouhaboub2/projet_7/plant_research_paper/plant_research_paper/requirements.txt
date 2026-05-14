@@ -1,0 +1,13 @@
+fastapi==0.115.12
+uvicorn==0.30.6
+gradio==5.23.3
+pydantic==2.11.3
+requests==2.32.3
+biopython==1.85
+chromadb==0.5.23
+numpy==2.2.4
+matplotlib==3.10.1
+reportlab==4.2.5
+python-multipart==0.0.20
+pytest==8.3.5
+python-dotenv==1.0.1

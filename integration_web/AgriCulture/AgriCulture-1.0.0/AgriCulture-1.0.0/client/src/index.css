@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: #1e293b;
+  background-color: #f8fafc;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  display: block;
+  min-width: 320px;
+  min-height: 100vh;
+  cursor: none !important;
+}
+
+button, a, [role="button"], .cursor-pointer {
+  cursor: none !important;
+}
+
+#root {
+  width: 100%;
+}
+
+@layer components {
+  .glass-morphism {
+    @apply bg-white/70 backdrop-blur-md border border-white/20;
+  }
+
+  .scientific-gradient {
+    @apply bg-gradient-to-br from-emerald-500 to-blue-600;
+  }
+}

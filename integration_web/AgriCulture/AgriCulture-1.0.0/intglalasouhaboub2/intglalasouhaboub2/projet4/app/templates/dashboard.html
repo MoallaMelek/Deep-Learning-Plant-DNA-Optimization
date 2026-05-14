@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Twin Blé — Dashboard</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         background: #f8f9fa; color: #1a1a1a; font-size: 13px; line-height: 1.5; }
+  .dash { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+  .top-links { display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:12px; font-size:12px; }
+  .top-links a { color:#1D9E75; font-weight:600; text-decoration:none; }
+  .top-links a:hover { text-decoration:underline; }
+
+  .header { display: flex; justify-content: space-between; align-items: center;
+             margin-bottom: 18px; padding-bottom: 14px;
+             border-bottom: 1px solid #e0e0e0; }
+  .header h1 { font-size: 17px; font-weight: 600; color: #111; }
+  .header p  { font-size: 12px; color: #888; margin-top: 2px; }
+  .badge { font-size: 11px; padding: 4px 12px; border-radius: 20px;
+            background: #e8f5ee; color: #1a7a4a; font-weight: 600; }
+
+  .phases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+             margin-bottom: 16px; }
+  .phase { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px 14px;
+            background: #fff; }
+  .phase.active { border-color: #1D9E75; background: #f0fbf5; }
+  .phase-num   { font-size: 10px; color: #aaa; font-weight: 600;
+                  text-transform: uppercase; letter-spacing: .05em; }
+  .phase-title { font-size: 13px; font-weight: 600; color: #222; margin: 3px 0 4px; }
+  .phase-desc  { font-size: 11px; color: #666; line-height: 1.4; }
+
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+              margin-bottom: 16px; }
+  .metric { background: #fff; border: 1px solid #e8e8e8; border-radius: 8px;
+             padding: 14px 16px; }
+  .metric .lbl { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .metric .val { font-size: 22px; font-weight: 700; color: #222; }
+  .metric .sub { font-size: 11px; color: #aaa; margin-top: 2px; }
+  .metric.ok   .val { color: #0e6e44; }
+  .metric.warn .val { color: #b86a00; }
+  .metric.crit .val { color: #c0392b; }
+
+  .controls { display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+               flex-wrap: wrap; }
+  .controls label { font-size: 12px; color: #555; font-weight: 500; }
+  select { font-size: 12px; padding: 5px 10px; border: 1px solid #ccc;
+            border-radius: 6px; background: #fff; cursor: pointer; color: #222; }
+  select:hover { border-color: #1D9E75; }
+
+  .btn-refresh {
+    font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 8px;
+    border: 1px solid #1D9E75; background: #1D9E75; color: #fff; cursor: pointer;
+  }
+  .btn-refresh:hover { filter: brightness(1.05); }
+  .btn-refresh:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+            margin-bottom: 14px; }
+  .card { background: #fff; border: 1px solid #e8e8e8; border-radius: 10px;
+           padding: 16px 18px; }
+  .card-title { font-size: 11px; font-weight: 600; color: #888;
+                 text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
+
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .bar-label { font-size: 11px; color: #555; width: 120px; flex-shrink: 0;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 9px; background: #f0f0f0; border-radius: 5px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 5px; transition: width .5s ease; }
+  .bar-val   { font-size: 11px; color: #444; width: 52px; text-align: right; flex-shrink: 0; }
+  .pill { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; flex-shrink: 0; }
+  .pill.ok   { background: #e8f5ee; color: #0e6e44; }
+  .pill.warn { background: #fff3df; color: #b86a00; }
+  .pill.crit { background: #fdecea; color: #c0392b; }
+
+  .event-list { max-height: 230px; overflow-y: auto; }
+  .ev { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0;
+         border-bottom: 1px solid #f0f0f0; }
+  .ev:last-child { border-bottom: none; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .dot.ok   { background: #1D9E75; }
+  .dot.warn { background: #EF9F27; }
+  .dot.crit { background: #E24B4A; }
+  .ev-text { font-size: 12px; color: #222; line-height: 1.4; }
+  .ev-day  { font-size: 11px; color: #aaa; margin-top: 1px; }
+
+  .seuil-row { display: flex; justify-content: space-between; align-items: center;
+                padding: 6px 0; border-bottom: 1px solid #f0f0f0; }
+  .seuil-row:last-child { border-bottom: none; }
+  .seuil-name { font-size: 12px; color: #444; }
+  .seuil-val { font-size: 12px; font-weight: 600; }
+  .seuil-val.ok   { color: #0e6e44; }
+  .seuil-val.warn { color: #b86a00; }
+  .seuil-val.crit { color: #c0392b; }
+
+  .chart-wrap { position: relative; width: 100%; height: 190px; }
+
+  .rec-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
+  .rec-list li { font-size: 13px; color: #333; line-height: 1.45; }
+
+  .footer { font-size: 11px; color: #aaa; text-align: center; padding-top: 12px;
+             border-top: 1px solid #eee; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="dash">
+
+  <div class="top-links">
+    <a href="/viz">Scène 3D (Three.js)</a>
+    <span style="color:#ccc">|</span>
+    <a href="/docs">Swagger /docs</a>
+    <span style="color:#ccc">|</span>
+    <span id="meta-rows" style="color:#888"></span>
+  </div>
+
+  <div class="header">
+    <div>
+      <h1>&#127807; Digital Twin Blé — Tableau de bord</h1>
+      <p>Tunisie · Maktar 624m · SimPy + WOFOST (API) · données <code>predictions_croisements.xlsx</code></p>
+    </div>
+    <span class="badge">&#9679; Données API</span>
+  </div>
+
+  <div class="phases">
+    <div class="phase">
+      <div class="phase-num">Phase 1</div>
+      <div class="phase-title">Normes établies</div>
+      <div class="phase-desc">
+        TWSO baseline : <strong id="p-twso">—</strong> kg/ha<br>
+        LAI max norme : <strong id="p-lai">—</strong> m²/m²
+      </div>
+    </div>
+    <div class="phase active">
+      <div class="phase-num">Phase 2</div>
+      <div class="phase-title">SimPy data engine</div>
+      <div class="phase-desc"><span id="p-nj">200</span> jours · météo synthétique · événements (extrait)</div>
+    </div>
+    <div class="phase">
+      <div class="phase-num">Phase 3</div>
+      <div class="phase-title">Twin WOFOST</div>
+      <div class="phase-desc" id="p-twin">— croisements évalués · scores vs normes</div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric ok" id="m-mean">
+      <div class="lbl">TWSO moyen</div>
+      <div class="val" id="v-mean">—</div>
+      <div class="sub">kg/ha</div>
+    </div>
+    <div class="metric" id="m-best">
+      <div class="lbl">Meilleur croisement</div>
+      <div class="val" id="v-best">—</div>
+      <div class="sub" id="v-bestname">kg/ha</div>
+    </div>
+    <div class="metric warn" id="m-alerts">
+      <div class="lbl">Sous seuil d’alerte</div>
+      <div class="val" id="v-alerts">—</div>
+      <div class="sub" id="v-alertssub">sur — évalués</div>
+    </div>
+    <div class="metric" id="m-score">
+      <div class="lbl">Score moyen / norme</div>
+      <div class="val" id="v-score">—</div>
+      <div class="sub">1.0 = norme baseline</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Recommandations (médiane dataset · horizon 6 mois · scénario normal)</div>
+    <ol class="rec-list" id="recs"></ol>
+  </div>
+
+  <div class="controls">
+    <label>Scénario :</label>
+    <select id="sel-sc" onchange="render()">
+      <option value="normal">Normal</option>
+      <option value="secheresse">Sécheresse</option>
+      <option value="canicule">Canicule</option>
+      <option value="maladie">Maladie</option>
+      <option value="optimal">Optimal</option>
+    </select>
+    <label style="margin-left:8px;">Seuil d'alerte :</label>
+    <select id="sel-seuil" onchange="render()">
+      <option value="0.85">85% — Warning</option>
+      <option value="0.70">70% — Critique</option>
+    </select>
+    <button type="button" class="btn-refresh" id="btn-refresh">Actualiser depuis l’API</button>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Rendement TWSO — croisements vs norme</div>
+      <div id="bars"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Climatologie mensuelle — normes Tunisie</div>
+      <div class="chart-wrap">
+        <canvas id="meteoChart"
+          role="img"
+          aria-label="Températures mensuelles Tmin et Tmax et pluie">
+        </canvas>
+      </div>
+      <div id="meteo-legend" style="display:flex;gap:14px;margin-top:8px;font-size:11px;color:#888;flex-wrap:wrap;"></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="card-title">Événements SimPy — chronologie</div>
+      <div class="event-list" id="evts"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Seuils d'alerte — normes de référence</div>
+      <div id="seuils"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    Réf : Van Diepen et al. (1989) WOFOST · Lutz et al. (2019) SimPy · Digital Twin API
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+let DATA = {{ data | tojson }};
+
+const SC_FACTORS = {
+  normal:     { f: 1.00, label: 'Normal' },
+  secheresse: { f: 0.78, label: 'Sécheresse' },
+  canicule:   { f: 0.83, label: 'Canicule' },
+  maladie:    { f: 0.72, label: 'Maladie' },
+  optimal:    { f: 1.15, label: 'Optimal' },
+};
+
+let meteoChart = null;
+
+function pct(v) { return parseFloat((v * 100).toFixed(1)); }
+
+function cls(ratio, seuil) {
+  if (ratio >= seuil)  return 'ok';
+  if (ratio >= 0.70)  return 'warn';
+  return 'crit';
+}
+
+function color(c) {
+  return c === 'ok' ? '#1D9E75' : c === 'warn' ? '#EF9F27' : '#E24B4A';
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderRecs() {
+  const ul = document.getElementById('recs');
+  const recs = Array.isArray(DATA.recommendations) ? DATA.recommendations : [];
+  if (!recs.length) {
+    ul.innerHTML = '<li style="color:#888">Aucune recommandation (chargez <code>data/predictions_croisements.xlsx</code> ou appelez <code>/recommend</code>).</li>';
+    return;
+  }
+  ul.innerHTML = recs.map(r => '<li>' + escapeHtml(r) + '</li>').join('');
+}
+
+function renderSeuils() {
+  const baseline = DATA.twso_baseline;
+  const SEUILS = [
+    { n: 'TWSO critique',     v: '< 70% norme (' + Math.round(baseline * (DATA.seuils.twso_critique_pct || 0.70)) + ' kg/ha)', c: 'crit' },
+    { n: 'TWSO warning',      v: '< 85% norme (' + Math.round(baseline * (DATA.seuils.twso_warning_pct || 0.85)) + ' kg/ha)', c: 'warn' },
+    { n: 'Canicule Tmax',     v: '> ' + DATA.seuils.tmax_canicule + '°C', c: 'crit' },
+    { n: 'Stress hydrique',   v: 'Pluie < ' + DATA.seuils.pluie_stress + ' mm/j', c: 'warn' },
+    { n: 'Vent fort',         v: '> ' + DATA.seuils.vent_alerte + ' m/s', c: 'warn' },
+    { n: 'LAI insuffisant',   v: 'LAI < ' + DATA.seuils.lai_insuffisant + ' m²/m²', c: 'warn' },
+    { n: 'TWSO baseline',     v: baseline.toLocaleString('fr-FR') + ' kg/ha', c: 'ok' },
+    { n: 'LAI max norme',     v: DATA.lai_max_baseline.toFixed(2) + ' m²/m²', c: 'ok' },
+  ];
+  document.getElementById('seuils').innerHTML = SEUILS.map(s =>
+    `<div class="seuil-row">
+      <span class="seuil-name">${escapeHtml(s.n)}</span>
+      <span class="seuil-val ${s.c}">${escapeHtml(s.v)}</span>
+    </div>`
+  ).join('');
+}
+
+function render() {
+  const sc    = document.getElementById('sel-sc').value;
+  const seuil = parseFloat(document.getElementById('sel-seuil').value);
+  const factor = (SC_FACTORS[sc] && SC_FACTORS[sc].f) ? SC_FACTORS[sc].f : 1.0;
+  const baseline = DATA.twso_baseline;
+
+  document.getElementById('p-nj').textContent = String(DATA.n_jours || 200);
+  document.getElementById('meta-rows').textContent = 'Lignes Excel : ' + (DATA.df_rows != null ? DATA.df_rows : '—');
+
+  const rows = (DATA.croisements || []).map(r => ({
+    ...r,
+    twso: Math.round(r.twso * factor),
+    ratio: (r.twso * factor) / baseline,
+  })).sort((a, b) => b.twso - a.twso);
+
+  const maxTWSO = rows[0]?.twso || baseline;
+  const mean    = rows.length ? Math.round(rows.reduce((s, r) => s + r.twso, 0) / rows.length) : 0;
+  const best    = rows[0] || {};
+  const scoreMean = rows.length ? (rows.reduce((s, r) => s + r.ratio, 0) / rows.length).toFixed(3) : '—';
+  const nAlerts = rows.filter(r => r.ratio < seuil).length;
+
+  document.getElementById('p-twso').textContent = baseline.toLocaleString('fr-FR');
+  document.getElementById('p-lai').textContent  = DATA.lai_max_baseline.toFixed(2);
+  document.getElementById('p-twin').textContent = rows.length + ' croisements évalués · scores vs normes';
+  document.getElementById('v-mean').textContent = mean.toLocaleString('fr-FR');
+  document.getElementById('v-best').textContent = best.twso ? best.twso.toLocaleString('fr-FR') : '—';
+  document.getElementById('v-bestname').textContent = best.name ? String(best.name).replace('CV_','').replace('_x_',' × ') : '';
+  document.getElementById('v-alerts').textContent = nAlerts;
+  document.getElementById('v-alertssub').textContent = 'sur ' + rows.length + ' évalués';
+  document.getElementById('v-score').textContent = scoreMean;
+
+  const sm = parseFloat(scoreMean);
+  document.getElementById('m-score').className = 'metric ' + cls(isFinite(sm) ? sm : 0, seuil);
+  document.getElementById('m-alerts').className = 'metric ' + (nAlerts === 0 ? 'ok' : nAlerts < 4 ? 'warn' : 'crit');
+
+  document.getElementById('bars').innerHTML = rows.map(r => {
+    const c = cls(r.ratio, seuil);
+    const barPct = Math.round(r.twso / maxTWSO * 100);
+    const shortName = String(r.name).replace('CV_','').replace('_x_',' × ');
+    return `<div class="bar-row">
+      <span class="bar-label" title="${escapeHtml(shortName)}">${escapeHtml(shortName)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${barPct}%;background:${color(c)}"></div></div>
+      <span class="bar-val">${r.twso.toLocaleString('fr-FR')}</span>
+      <span class="pill ${c}">${pct(r.ratio)}%</span>
+    </div>`;
+  }).join('');
+
+  const evts = (DATA.events && DATA.events[sc]) ? DATA.events[sc] : (DATA.events && DATA.events['normal']) ? DATA.events['normal'] : [];
+  document.getElementById('evts').innerHTML = evts.map(e => {
+    const sev = String(e.severite || '');
+    const c = sev === 'CRITIQUE' ? 'crit' : sev === 'WARNING' ? 'warn' : 'ok';
+    return `<div class="ev">
+      <span class="dot ${c}"></span>
+      <div>
+        <div class="ev-text">${escapeHtml(e.description || '')}</div>
+        <div class="ev-day">Jour ${e.jour} · ${escapeHtml(e.date || '')} · ${escapeHtml(sev)}</div>
+      </div>
+    </div>`;
+  }).join('') || '<p style="color:#aaa;font-size:12px;padding:8px 0;">Aucun événement chargé.</p>';
+
+  renderRecs();
+}
+
+function buildMeteoChart() {
+  const ctx = document.getElementById('meteoChart').getContext('2d');
+  if (meteoChart) {
+    meteoChart.destroy();
+    meteoChart = null;
+  }
+  meteoChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'],
+      datasets: [
+        { label:'Tmin (°C)', data: DATA.meteo.tmin, borderColor:'#378ADD',
+           fill:false, tension:0.3, pointRadius:3, pointStyle:'circle',
+           borderDash:[4,3] },
+        { label:'Tmax (°C)', data: DATA.meteo.tmax, borderColor:'#E24B4A',
+           fill:false, tension:0.3, pointRadius:3, pointStyle:'rect' },
+        { label:'Pluie (mm)', data: DATA.meteo.pluie, borderColor:'#1D9E75',
+           fill:false, tension:0.3, pointRadius:3, pointStyle:'triangle',
+           yAxisID:'y2' },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend: { display:false } },
+      scales: {
+        x:  { ticks: { font:{size:10}, maxRotation:0 }, grid:{ color:'rgba(0,0,0,.05)' } },
+        y:  { ticks: { font:{size:10} }, grid:{ color:'rgba(0,0,0,.05)' } },
+        y2: { position:'right', ticks:{ font:{size:10}, color:'#1D9E75' },
+               grid:{ display:false } },
+      }
+    }
+  });
+
+  document.getElementById('meteo-legend').innerHTML = [
+    ['#378ADD','Tmin (°C)'], ['#E24B4A','Tmax (°C)'], ['#1D9E75','Pluie mm (axe droite)']
+  ].map(([c,l]) =>
+    `<span style="display:flex;align-items:center;gap:4px;">
+      <span style="width:12px;height:2px;background:${c};display:inline-block;border-radius:1px;"></span>
+      ${escapeHtml(l)}</span>`
+  ).join('');
+}
+
+async function refreshFromApi() {
+  const btn = document.getElementById('btn-refresh');
+  btn.disabled = true;
+  try {
+    const nj = DATA.n_jours || 200;
+    const resp = await fetch('/dashboard/data?n_jours=' + encodeURIComponent(nj), { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    DATA = await resp.json();
+    renderSeuils();
+    buildMeteoChart();
+    render();
+  } catch (e) {
+    console.error(e);
+    alert('Impossible de charger /dashboard/data — vérifiez que le serveur tourne (uvicorn).');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById('btn-refresh').addEventListener('click', refreshFromApi);
+
+renderSeuils();
+buildMeteoChart();
+render();
+</script>
+</body>
+</html>
