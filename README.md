@@ -250,3 +250,30 @@ Built as an AI/ML engineering portfolio project for precision agriculture, plant
 **From plant signals to actionable AI intelligence.**
 
 </div>
+
+<!-- certifications:start -->
+## Relevant Certifications
+
+Related training completed by **Melek Moalla**, with the connection to this project stated below.
+
+<a href="https://learn.nvidia.com/certificates?id=nQezqvF2S3GIgeoy1hNHKw"><img width="360" src="assets/certifications/nvidia-deep-learning.svg" alt="NVIDIA: Fundamentals of Deep Learning" /></a>
+
+**NVIDIA · Fundamentals of Deep Learning**  
+Related to the TensorFlow/Keras CNN inference path in CropDNA and the project’s neural vision and audio modules.  
+[Verify / issuer record](https://learn.nvidia.com/certificates?id=nQezqvF2S3GIgeoy1hNHKw) · [Original PDF](https://github.com/MoallaMelek/MoallaMelek/blob/master/certificates/nvidia-deep-learning.pdf)
+
+<a href="https://learn.nvidia.com/certificates?id=IkT2VY9-TWGR3EvSAaeFNA"><img width="360" src="assets/certifications/nvidia-diffusion.svg" alt="NVIDIA: Generative AI with Diffusion Models" /></a>
+
+**NVIDIA · Generative AI with Diffusion Models**  
+Complementary training in generative model methods alongside the project’s neural inference and RAG work. This repository does not implement diffusion models.  
+[Verify / issuer record](https://learn.nvidia.com/certificates?id=IkT2VY9-TWGR3EvSAaeFNA) · [Original PDF](https://github.com/MoallaMelek/MoallaMelek/blob/master/certificates/nvidia-diffusion.pdf)
+
+<a href="https://coursera.org/verify/KN4I9UGNT0WZ"><img width="360" src="assets/certifications/aws-genai-design.svg" alt="Amazon Web Services: Gen AI Dev- Analyze Requirements &amp; Design GenAI Solutions" /></a>
+
+**Amazon Web Services · Gen AI Dev- Analyze Requirements & Design GenAI Solutions**  
+Related to designing the CropDNA retrieval-augmented workflow, grounding answers in retrieved sources, and integrating it with the FastAPI application.  
+[Verify / issuer record](https://coursera.org/verify/KN4I9UGNT0WZ) · [Original PDF](https://github.com/MoallaMelek/MoallaMelek/blob/master/certificates/aws-genai-design.pdf)
+
+<sub>The AWS credentials are Coursera course completions. The association concerns learning; it does not claim an AWS deployment or issuer endorsement.</sub>
+
+<!-- certifications:end -->
